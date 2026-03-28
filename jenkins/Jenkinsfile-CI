@@ -11,7 +11,7 @@ pipeline {
         NEXUS_URL = 'your-nexus-server:8081'
         NEXUS_CREDENTIALS = credentials('nexus-credentials')
         DOCKERHUB_USERNAME = 'your-dockerhub-username'
-        SERVICES = 'api-gateway product-service order-service'
+        SERVICES = 'api-gateway product-service order-service user-service frontend'
     }
     
     tools {

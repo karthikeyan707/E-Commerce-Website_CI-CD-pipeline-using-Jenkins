@@ -51,6 +51,36 @@ services:
       retries: 3
       start_period: 10s
 
+  # User Service
+  user-service:
+    build:
+      context: ../user-service
+      dockerfile: Dockerfile
+    container_name: ecommerce-user-service
+    environment:
+      PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: users_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      NODE_ENV: development
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3003/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # Order Service
   order-service:
     build:
@@ -93,6 +123,7 @@ services:
       PORT: 3000
       PRODUCT_SERVICE_URL: http://product-service:3001
       ORDER_SERVICE_URL: http://order-service:3002
+      USER_SERVICE_URL: http://user-service:3003
       NODE_ENV: development
     ports:
       - "3000:3000"
@@ -100,6 +131,8 @@ services:
       product-service:
         condition: service_healthy
       order-service:
+        condition: service_healthy
+      user-service:
         condition: service_healthy
     networks:
       - ecommerce-network
@@ -110,6 +143,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  # Frontend
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: ecommerce-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

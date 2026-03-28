@@ -10,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001';
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://order-service:3002';
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:3003';
 
 // Security middleware
 app.use(helmet());
@@ -43,7 +44,9 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       products: '/api/products',
-      orders: '/api/orders'
+      orders: '/api/orders',
+      auth: '/api/auth',
+      users: '/api/users'
     }
   });
 });
@@ -74,6 +77,32 @@ app.use('/api/orders', createProxyMiddleware({
   }
 }));
 
+// Proxy middleware for User Service (Auth)
+app.use('/api/auth', createProxyMiddleware({
+  target: USER_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/auth': '/auth'
+  },
+  onError: (err, req, res) => {
+    console.error('User Service Error:', err.message);
+    res.status(503).json({ error: 'User Service unavailable' });
+  }
+}));
+
+// Proxy middleware for User Service (Users)
+app.use('/api/users', createProxyMiddleware({
+  target: USER_SERVICE_URL,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/users': '/auth'
+  },
+  onError: (err, req, res) => {
+    console.error('User Service Error:', err.message);
+    res.status(503).json({ error: 'User Service unavailable' });
+  }
+}));
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -89,6 +118,7 @@ app.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);
   console.log(`Product Service: ${PRODUCT_SERVICE_URL}`);
   console.log(`Order Service: ${ORDER_SERVICE_URL}`);
+  console.log(`User Service: ${USER_SERVICE_URL}`);
 });
 
 module.exports = app;

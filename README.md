@@ -1,32 +1,38 @@
 # E-Commerce CI/CD Project
 
-A production-grade microservices-based E-Commerce system with complete CI/CD pipeline on AWS EKS.
+A production-grade microservices-based E-Commerce system with complete CI/CD pipeline on AWS EKS. Features a React frontend, JWT authentication, and 5 products with shopping cart functionality.
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
+│                           React Frontend (Port 80)                   │
+│                    SPA - Products, Cart, Orders, Auth                │
+└───────────────────────────────────┬─────────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼─────────────────────────────────┐
 │                              AWS EKS                                │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                     Ingress (ALB)                              │  │
-│  └───────────────────────┬───────────────────────────────────────┘  │
-│                          │                                          │
-│  ┌───────────────────────▼───────────────────────────────────────┐  │
-│  │                    API Gateway (2 replicas)                    │  │
-│  │                 Port: 3000, Rate Limiting                      │  │
-│  └───────────────┬───────────────────────┬───────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────┐   │
+│  │                     Ingress (ALB)                          │   │
+│  └───────────────────────┬───────────────────────────────────┘   │
+│                          │                                        │
+│  ┌───────────────────────▼───────────────────────────────────┐     │
+│  │                API Gateway (2 replicas)                  │     │
+│  │             Port: 3000, Rate Limiting                  │     │
+│  └───────────────┬───────────────────────┬──────────────────┘     │
 │                  │                       │                          │
-│      ┌───────────▼──────────┐  ┌──────────▼──────────┐             │
-│      │   Product Service    │  │    Order Service    │             │
-│      │   (3 replicas)       │  │    (3 replicas)     │             │
-│      │   Port: 3001         │  │    Port: 3002       │             │
-│      └───────────┬──────────┘  └──────────┬──────────┘             │
-│                  │                       │                          │
-│      ┌───────────▼───────────────────────▼──────────┐              │
-│      │     PostgreSQL StatefulSet (Multi-AZ)        │              │
-│      │     Primary: postgres-0  (AZ-1)              │              │
-│      │     Replica: postgres-1   (AZ-2)             │              │
-│      └───────────────────────────────────────────────┘              │
+│      ┌───────────▼──────────┐  ┌────────▼──────────┐  ┌───────────┐│
+│      │   Product Service    │  │  Order Service  │  │User Service│
+│      │   (3 replicas)       │  │  (3 replicas)   │  │(2 replicas)│
+│      │   Port: 3001         │  │  Port: 3002     │  │Port: 3003  │
+│      └───────────┬──────────┘  └────────┬──────────┘  └─────┬─────┘│
+│                  │                     │                   │      │
+│      ┌───────────▼─────────────────────▼───────────────────▼────┐│
+│      │           PostgreSQL StatefulSet (Multi-AZ)              ││
+│      │           Primary: postgres-0  (AZ-1)                    ││
+│      │           Replica: postgres-1   (AZ-2)                   ││
+│      │           Databases: products_db, orders_db, users_db      ││
+│      └──────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,34 +40,62 @@ A production-grade microservices-based E-Commerce system with complete CI/CD pip
 
 | Service | Port | Description | Database |
 |---------|------|-------------|----------|
-| API Gateway | 3000 | Reverse proxy, rate limiting | None |
-| Product Service | 3001 | Product CRUD operations | PostgreSQL |
-| Order Service | 3002 | Order management | PostgreSQL |
+| Frontend | 80 | React SPA (Products, Cart, Orders) | None |
+| API Gateway | 3000 | Reverse proxy, rate limiting, routing | None |
+| Product Service | 3001 | Product CRUD, 5 seeded products | PostgreSQL |
+| Order Service | 3002 | Order management, user order history | PostgreSQL |
+| User Service | 3003 | JWT authentication (register/login) | PostgreSQL |
+
+## API Endpoints
+
+### Authentication (via API Gateway)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register` | POST | Register new user (username, password) |
+| `/api/auth/login` | POST | Login and get JWT token |
+| `/api/users/profile` | GET | Get user profile (JWT required) |
+
+### Products
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/products` | GET | List all 5 products |
+| `/api/products/:id` | GET | Get single product |
+
+### Orders (JWT Required)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/orders` | POST | Create order with cart items |
+| `/api/orders/user/:userId` | GET | Get user's order history |
 
 ## Project Structure
 
 ```
 E_Commerce-CICD/
+├── frontend/             # React SPA (Products, Cart, Auth, Orders)
+│   ├── src/
+│   │   ├── pages/        # Home, Cart, Login, Register, Orders
+│   │   ├── components/   # Navbar
+│   │   └── context/      # AuthContext, CartContext
+│   └── public/
 ├── api-gateway/          # API Gateway microservice
-├── product-service/      # Product Service microservice
-├── order-service/        # Order Service microservice
+├── product-service/      # Product Service with 5 seeded products
+├── order-service/        # Order Service (linked to users)
+├── user-service/         # JWT Authentication service
 ├── k8s/                  # Kubernetes manifests
-│   └── base/            # Base K8s configurations
-│       ├── storageclass-postgres.yaml    # EBS StorageClass
-│       ├── statefulset-postgres.yaml     # PostgreSQL HA StatefulSet
-│       ├── configmap-postgres.yaml       # PostgreSQL config
-│       ├── secret-postgres.yaml          # PostgreSQL credentials
-│       └── service-postgres.yaml         # PostgreSQL headless service
-├── jenkins/             # Jenkins pipelines
-│   ├── Jenkinsfile-CI   # CI with docker-compose build
-│   └── Jenkinsfile-CD   # Continuous Deployment
-├── scripts/             # Infrastructure setup scripts
-│   ├── build-images.sh  # Build all images with docker-compose
-│   └── push-images.sh   # Push images to DockerHub
-├── docker/              # Docker configurations
-│   ├── docker-compose.yml       # Full local stack
-│   └── docker-compose.build.yml # Build-only compose
-└── config/              # Configuration files
+│   └── base/
+│       ├── deployment-*.yaml      # All service deployments
+│       ├── service-*.yaml         # All service definitions
+│       ├── configmap-*.yaml       # Service configurations
+│       ├── secret-*.yaml          # Database credentials
+│       └── statefulset-postgres.yaml  # PostgreSQL HA
+├── jenkins/
+│   ├── Jenkinsfile-CI   # GitHub webhook trigger, manual approval
+│   └── Jenkinsfile-CD   # Deployment pipeline
+├── docker/
+│   └── docker-compose.yml   # Full local stack with frontend
+└── scripts/
+    ├── build-images.sh
+    └── push-images.sh
 ```
 
 ## Prerequisites
@@ -127,6 +161,8 @@ chmod +x scripts/setup-trivy.sh
 cd api-gateway && npm install
 cd ../product-service && npm install
 cd ../order-service && npm install
+cd ../user-service && npm install
+cd ../frontend && npm install
 ```
 
 #### 2.2 Environment Configuration
@@ -134,20 +170,40 @@ cd ../order-service && npm install
 cp api-gateway/.env.example api-gateway/.env
 cp product-service/.env.example product-service/.env
 cp order-service/.env.example order-service/.env
+cp user-service/.env.example user-service/.env
 ```
 
 Edit the `.env` files with your database credentials and service URLs.
 
-#### 2.3 Start Services Locally
+#### 2.3 Start Full Stack with Docker Compose (Recommended)
 ```bash
-# Terminal 1 - Product Service
+cd docker
+docker-compose up -d
+
+# Access:
+# Frontend: http://localhost (port 80)
+# API: http://localhost:3000
+```
+
+#### 2.4 Start Services Locally (Individual)
+```bash
+# Terminal 1 - PostgreSQL
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:15-alpine
+
+# Terminal 2 - Product Service
 cd product-service && npm run dev
 
-# Terminal 2 - Order Service
+# Terminal 3 - Order Service  
 cd order-service && npm run dev
 
-# Terminal 3 - API Gateway
+# Terminal 4 - User Service
+cd user-service && npm run dev
+
+# Terminal 5 - API Gateway
 cd api-gateway && npm run dev
+
+# Terminal 6 - Frontend
+cd frontend && npm start
 ```
 
 #### 2.4 Test Endpoints
@@ -156,10 +212,20 @@ cd api-gateway && npm run dev
 curl http://localhost:3000/health
 curl http://localhost:3001/health
 curl http://localhost:3002/health
+curl http://localhost:3003/health
 
 # API Gateway
 curl http://localhost:3000/api/products
 curl http://localhost:3000/api/orders
+
+# Authentication
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"password123"}'
+
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"password123"}'
 ```
 
 ### 3. Docker Build with Docker Compose
@@ -233,14 +299,22 @@ kubectl get pvc -n production
 kubectl apply -f configmap-api-gateway.yaml -n production
 kubectl apply -f configmap-product-service.yaml -n production
 kubectl apply -f configmap-order-service.yaml -n production
+kubectl apply -f configmap-user-service.yaml -n production
 
-# Secrets (uses postgres-credentials instead of secret-db if using StatefulSet)
+# Secrets
 kubectl apply -f secret-db.yaml -n production
+kubectl apply -f secret-user-service.yaml -n production
 
 # Deployments
 kubectl apply -f deployment-api-gateway.yaml -n production
 kubectl apply -f deployment-product-service.yaml -n production
 kubectl apply -f deployment-order-service.yaml -n production
+kubectl apply -f deployment-user-service.yaml -n production
+kubectl apply -f deployment-frontend.yaml -n production
+
+# Services
+kubectl apply -f service-user-service.yaml -n production
+kubectl apply -f service-frontend.yaml -n production
 
 # HPA
 kubectl apply -f hpa.yaml -n production
@@ -249,7 +323,17 @@ kubectl apply -f hpa.yaml -n production
 kubectl apply -f ingress.yaml -n production
 ```
 
-#### 4.4 Verify Deployment
+#### 4.5 Access the Application
+```bash
+# Get frontend LoadBalancer URL
+kubectl get svc frontend -n production
+
+# Or port-forward for local testing
+kubectl port-forward svc/frontend 8080:80 -n production
+# Open http://localhost:8080 in browser
+```
+
+#### 4.6 Verify Deployment
 ```bash
 # Check pods
 kubectl get pods -n production
@@ -305,6 +389,8 @@ kubectl logs -f deployment/api-gateway -n production
    - `ecommerce-api-gateway`
    - `ecommerce-product-service`
    - `ecommerce-order-service`
+   - `ecommerce-user-service`
+   - `ecommerce-frontend`
 4. Generate tokens and add to Jenkins credentials
 
 #### 5.3 Nexus Configuration
@@ -350,6 +436,17 @@ kubectl logs -f deployment/api-gateway -n production
 
 ## Database Schema
 
+### Users Table
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ### Products Table
 ```sql
 CREATE TABLE products (
@@ -370,7 +467,8 @@ CREATE TABLE products (
 ```sql
 CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  customer_email VARCHAR(255) NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  customer_email VARCHAR(255),
   total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
   status VARCHAR(50) DEFAULT 'PENDING',
   shipping_address TEXT,
@@ -392,15 +490,18 @@ CREATE TABLE order_items (
 ## CI/CD Pipeline Stages
 
 ### CI Pipeline (Jenkinsfile-CI)
-1. **Checkout** - Clone repository
-2. **Build** - Install dependencies
-3. **Unit Tests** - Run test suites with coverage
-4. **SonarQube Analysis** - Code quality scan
-5. **Quality Gate** - Enforce quality standards
-6. **Docker Build** - Build container images
-7. **Trivy Scan** - Security vulnerability scan
-8. **Push to DockerHub** - Publish images
-9. **Upload to Nexus** - Archive artifacts
+1. **Trigger** - GitHub webhook on push
+2. **Checkout** - Clone repository
+3. **Build** - Install dependencies
+4. **Unit Tests** - Run test suites with coverage
+5. **SonarQube Analysis** - Code quality scan
+6. **Quality Gate** - Enforce quality standards
+7. **Docker Build** - Build container images
+8. **Trivy Scan** - Security vulnerability scan
+9. **Push to DockerHub** - Publish images
+10. **Upload to Nexus** - Archive artifacts
+11. **Manual Approval** - Approve deployment
+12. **Trigger CD** - Start deployment pipeline
 
 ### CD Pipeline (Jenkinsfile-CD)
 1. **Checkout K8s Manifests** - Pull Kubernetes configs

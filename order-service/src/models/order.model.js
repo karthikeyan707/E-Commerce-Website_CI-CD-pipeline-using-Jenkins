@@ -7,9 +7,17 @@ const Order = sequelize.define('Order', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
+  },
   customerEmail: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
   },
   totalAmount: {
     type: DataTypes.DECIMAL(10, 2),

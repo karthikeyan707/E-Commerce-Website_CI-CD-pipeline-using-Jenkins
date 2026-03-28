@@ -20,6 +20,7 @@ EOSQL
     }
     create_database "products_db"
     create_database "orders_db"
+    create_database "users_db"
     echo "All databases created successfully!"
   # PostgreSQL configuration for multi-AZ and performance
   postgres.conf: |

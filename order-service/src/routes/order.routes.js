@@ -53,7 +53,7 @@ router.get('/:id', async (req, res) => {
 
 // Create order
 router.post('/', [
-  body('customerEmail').isEmail().normalizeEmail(),
+  body('userId').isInt().withMessage('User ID is required'),
   body('items').isArray({ min: 1 }),
   body('items.*.productId').notEmpty(),
   body('items.*.quantity').isInt({ min: 1 })
@@ -64,7 +64,7 @@ router.post('/', [
   }
   
   try {
-    const { customerEmail, items, shippingAddress } = req.body;
+    const { userId, customerEmail, items, shippingAddress } = req.body;
     let totalAmount = 0;
     const orderItems = [];
     
@@ -90,6 +90,7 @@ router.post('/', [
     
     // Create order with items
     const order = await Order.create({
+      userId,
       customerEmail,
       totalAmount,
       shippingAddress
@@ -138,15 +139,32 @@ router.put('/:id/status', [
   }
 });
 
-// Delete order
-router.delete('/:id', async (req, res) => {
+// Get orders by user ID
+router.get('/user/:userId', async (req, res) => {
   try {
-    const order = await Order.findByPk(req.params.id);
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    await order.destroy();
-    res.json({ message: 'Order deleted successfully' });
+    const { userId } = req.params;
+    const { page = 1, limit = 10, status } = req.query;
+    const offset = (page - 1) * limit;
+    
+    const where = { userId };
+    if (status) where.status = status;
+    
+    const { count, rows: orders } = await Order.findAndCountAll({
+      where,
+      include: [{ model: OrderItem, as: 'items' }],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json({
+      orders,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        pages: Math.ceil(count / limit)
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
