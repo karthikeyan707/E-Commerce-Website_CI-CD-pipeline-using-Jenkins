@@ -1,0 +1,24 @@
+version: '3.8'
+
+# Use this file to build all images at once without running containers
+# Usage: docker-compose -f docker-compose.build.yml build
+# Usage with env vars: IMAGE_TAG=abc123 DOCKERHUB_USERNAME=myuser docker-compose -f docker-compose.build.yml build
+
+services:
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/api-gateway:${IMAGE_TAG:-latest}
+
+  product-service:
+    build:
+      context: ../product-service
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/product-service:${IMAGE_TAG:-latest}
+
+  order-service:
+    build:
+      context: ../order-service
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/order-service:${IMAGE_TAG:-latest}

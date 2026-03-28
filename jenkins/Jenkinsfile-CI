@@ -1,0 +1,216 @@
+pipeline {
+    agent any
+    
+    triggers {
+        githubPush()
+    }
+    
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        SONARQUBE_TOKEN = credentials('sonarqube-token')
+        NEXUS_URL = 'your-nexus-server:8081'
+        NEXUS_CREDENTIALS = credentials('nexus-credentials')
+        DOCKERHUB_USERNAME = 'your-dockerhub-username'
+        SERVICES = 'api-gateway product-service order-service'
+    }
+    
+    tools {
+        nodejs 'NodeJS-18'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                checkout scm
+                sh 'git log --oneline -1'
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                script {
+                    SERVICES.split(' ').each { service ->
+                        dir(service) {
+                            echo "Building ${service}..."
+                            sh 'npm ci'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                script {
+                    SERVICES.split(' ').each { service ->
+                        dir(service) {
+                            echo "Testing ${service}..."
+                            sh 'npm test'
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    publishTestResults testResultsPattern: '**/coverage/lcov-report/*.html'
+                }
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    SERVICES.split(' ').each { service ->
+                        dir(service) {
+                            withSonarQubeEnv('SonarQube') {
+                                sh """
+                                    npx sonar-scanner \
+                                    -Dsonar.projectKey=ecommerce-${service} \
+                                    -Dsonar.projectName="E-Commerce ${service}" \
+                                    -Dsonar.sources=src \
+                                    -Dsonar.tests=tests \
+                                    -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                script {
+                    def imageTag = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_TAG = imageTag
+                    
+                    echo "Building all Docker images using docker-compose..."
+                    sh """
+                        cd docker
+                        # Build all images with versioned tags using docker-compose
+                        IMAGE_TAG=${imageTag} DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} docker-compose -f docker-compose.build.yml build
+                    """
+                    
+                    echo "Docker images built successfully:"
+                    sh "docker images | grep ${DOCKERHUB_USERNAME}"
+                }
+            }
+        }
+        
+        stage('Trivy Scan') {
+            steps {
+                script {
+                    SERVICES.split(' ').each { service ->
+                        echo "Scanning ${service} with Trivy..."
+                        sh """
+                            trivy image --severity HIGH,CRITICAL --exit-code 0 ${DOCKERHUB_USERNAME}/${service}:${IMAGE_TAG}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Push to DockerHub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                        
+                        SERVICES.split(' ').each { service ->
+                            echo "Pushing ${service} to DockerHub..."
+                            sh """
+                                docker push ${DOCKERHUB_USERNAME}/${service}:${IMAGE_TAG}
+                                docker push ${DOCKERHUB_USERNAME}/${service}:latest
+                            """
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Upload Artifacts to Nexus') {
+            steps {
+                script {
+                    SERVICES.split(' ').each { service ->
+                        dir(service) {
+                            echo "Uploading ${service} artifacts to Nexus..."
+                            sh """
+                                tar -czf ${service}-${IMAGE_TAG}.tar.gz src package.json package-lock.json
+                                curl -u ${NEXUS_CREDENTIALS} --upload-file ${service}-${IMAGE_TAG}.tar.gz \
+                                    http://${NEXUS_URL}/repository/ecommerce-artifacts/${service}/${IMAGE_TAG}/
+                            """
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Manual Approval for CD') {
+            steps {
+                script {
+                    def userInput = input(
+                        id: 'deployApproval',
+                        message: 'CI Pipeline Successful. Deploy to production?',
+                        parameters: [
+                            choice(
+                                name: 'DEPLOY_ENVIRONMENT',
+                                choices: ['production', 'staging'],
+                                description: 'Select deployment environment'
+                            ),
+                            text(
+                                name: 'DEPLOY_NOTES',
+                                description: 'Deployment notes (optional)',
+                                defaultValue: "Build ${env.BUILD_NUMBER} - ${env.IMAGE_TAG}"
+                            )
+                        ],
+                        submitterParameter: 'APPROVER'
+                    )
+                    echo "Deployment approved by: ${userInput.APPROVER}"
+                    echo "Deploying to: ${userInput.DEPLOY_ENVIRONMENT}"
+                    echo "Notes: ${userInput.DEPLOY_NOTES}"
+                    env.DEPLOY_ENV = userInput.DEPLOY_ENVIRONMENT
+                }
+            }
+        }
+        
+        stage('Trigger CD Pipeline') {
+            steps {
+                script {
+                    echo "Triggering CD Pipeline for environment: ${env.DEPLOY_ENV}"
+                    build(
+                        job: 'ecommerce-cd',
+                        parameters: [
+                            string(name: 'IMAGE_TAG', value: "${env.IMAGE_TAG}"),
+                            string(name: 'DEPLOY_ENVIRONMENT', value: "${env.DEPLOY_ENV}")
+                        ],
+                        wait: false
+                    )
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh 'docker logout || true'
+            cleanWs()
+        }
+        success {
+            echo 'CI Pipeline completed successfully!'
+            slackSend color: 'good', message: "CI Pipeline SUCCESS: E-Commerce Services - Build #${BUILD_NUMBER}"
+        }
+        failure {
+            echo 'CI Pipeline failed!'
+            slackSend color: 'danger', message: "CI Pipeline FAILED: E-Commerce Services - Build #${BUILD_NUMBER}"
+        }
+    }
+}
