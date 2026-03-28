@@ -150,6 +150,8 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     container_name: ecommerce-frontend
+    environment:
+      VITE_API_URL: http://api-gateway:3000
     ports:
       - "80:80"
     depends_on:

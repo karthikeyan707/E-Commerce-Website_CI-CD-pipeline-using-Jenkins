@@ -171,6 +171,7 @@ cp api-gateway/.env.example api-gateway/.env
 cp product-service/.env.example product-service/.env
 cp order-service/.env.example order-service/.env
 cp user-service/.env.example user-service/.env
+cp frontend/.env.example frontend/.env
 ```
 
 Edit the `.env` files with your database credentials and service URLs.
@@ -202,8 +203,8 @@ cd user-service && npm run dev
 # Terminal 5 - API Gateway
 cd api-gateway && npm run dev
 
-# Terminal 6 - Frontend
-cd frontend && npm start
+# Terminal 6 - Frontend (Vite dev server)
+cd frontend && npm run dev
 ```
 
 #### 2.4 Test Endpoints
