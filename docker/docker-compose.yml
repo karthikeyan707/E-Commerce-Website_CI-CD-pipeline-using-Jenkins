@@ -149,6 +149,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://api-gateway:3000
     container_name: ecommerce-frontend
     environment:
       VITE_API_URL: http://api-gateway:3000
