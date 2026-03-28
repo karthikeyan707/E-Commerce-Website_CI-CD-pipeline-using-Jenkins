@@ -18,15 +18,24 @@ const sequelize = new Sequelize(
   }
 );
 
-const connectDB = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Order Service: Database connected successfully.');
-    await sequelize.sync({ alter: true });
-    console.log('Order Service: Models synchronized.');
-  } catch (error) {
-    console.error('Order Service: Database connection failed:', error.message);
-    process.exit(1);
+const connectDB = async (retries = 5, delay = 5000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await sequelize.authenticate();
+      console.log('Order Service: Database connected successfully.');
+      await sequelize.sync({ alter: true });
+      console.log('Order Service: Models synchronized.');
+      return;
+    } catch (error) {
+      console.error(`Order Service: Database connection attempt ${i + 1}/${retries} failed:`, error.message);
+      if (i < retries - 1) {
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error('Order Service: All database connection attempts failed. Exiting.');
+        process.exit(1);
+      }
+    }
   }
 };
 
