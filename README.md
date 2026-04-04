@@ -30,7 +30,7 @@ A production-grade microservices-based E-Commerce system with complete CI/CD pip
 │                  │                     │                   │      │
 │      ┌───────────▼─────────────────────▼───────────────────▼────┐│
 │      │           PostgreSQL (CloudNativePG)                          ││
-│      │           ├─ 3 Instances (1 Primary + 2 Replicas)            ││
+│      │           ├─ 2 Instances (1 Primary + 1 Replica)             ││
 │      │           ├─ Auto Failover via Kubernetes Leader Election    ││
 │      │           ├─ Multi-AZ Distribution                          ││
 │      │           └─ Databases: products_db, orders_db, users_db     ││
@@ -54,11 +54,10 @@ A production-grade microservices-based E-Commerce system with complete CI/CD pip
 │  │  └──────────────────────────────────────────────────────┘ │     │
 │  │                                                          │     │
 │  │  Installed Tools:                                        │     │
-│  │  ├─ Docker & Docker Compose                              │     │
+│  │  ├─ Docker                                               │     │
 │  │  ├─ Node.js & npm                                        │     │
 │  │  ├─ AWS CLI                                              │     │
-│  │  ├─ kubectl & eksctl                                     │     │
-│  │  ├─ Helm                                                 │     │
+│  │  ├─ kubectl                                              │     │
 │  │  ├─ Trivy (Security Scan)                                │     │
 │  │  └─ SonarQube Scanner                                    │     │
 │  │                                                          │     │
@@ -163,10 +162,8 @@ E_Commerce-CICD/
 
 - AWS CLI v2+
 - kubectl v1.28+
-- eksctl v0.160+
 - Docker v24+
 - Node.js 18+
-- Helm v3+
 
 ## Quick Start
 
@@ -209,7 +206,7 @@ terraform output
 # - eks_kubeconfig_command: aws eks update-kubeconfig ...
 ```
 
-#### Step 2: Configure Jenkins (SonarQube & Nexus Auto-Provisioned)
+#### Step 2: Configure Jenkins, SonarQube & Nexus
 
 Jenkins instance automatically starts SonarQube and Nexus as Docker containers:
 
@@ -226,18 +223,42 @@ terraform output jenkins_url
 # Open in browser, login: admin / admin123
 ```
 
-**2. Get Nexus Admin Password:**
+**2. Setup SonarQube:**
+
+a. **Login:** `http://<jenkins-ip>:9000` with admin/admin
+
+b. **Create Project:**
+   - Click **Projects** → **Create Project** → **Manually**
+   - Project key: `ecommerce-app`
+   - Display name: `E-Commerce Application`
+   - Main branch: `main`
+   - Click **Set Up**
+
+c. **Generate Token:**
+   - User menu (top right) → **My Account** → **Security**
+   - Token name: `jenkins-ci`
+   - Click **Generate** and copy the token
+
+**3. Setup Nexus:**
+
+a. **Get Admin Password:**
 ```bash
 ssh -i your-key.pem ec2-user@<jenkins-ip>
 docker exec nexus cat /nexus-data/admin.password
 ```
 
-**3. Generate SonarQube Token:**
-- Login to SonarQube (`http://<jenkins-ip>:9000`) with admin/admin
-- User → My Account → Security → Generate Token
-- Copy the token for Jenkins credential
+b. **Login:** `http://<jenkins-ip>:8081` with admin / (password from above)
+
+c. **Create Repository:**
+   - Click **Settings** (gear icon) → **Repositories** → **Create repository**
+   - Select: **`raw (hosted)`**
+   - Name: `ecommerce-artifacts`
+   - Online: ✓ Checked
+   - Deployment Policy: `Allow redeploy`
+   - Click **Create repository**
 
 **4. Configure Jenkins Credentials:**
+
 Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credentials
 
 1. **DockerHub Credentials**
@@ -251,11 +272,12 @@ Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credential
 3. **GitHub Token**
    - Kind: Secret text
    - ID: `github-token`
+   - Generate classic token from GitHub: Settings → Developer settings → Personal access tokens → Tokens (classic) → scope: `repo`
 
 4. **SonarQube Token**
    - Kind: Secret text
    - ID: `sonarqube-token`
-   - Secret: (token from SonarQube UI)
+   - Secret: (token from SonarQube UI step above)
 
 5. **Nexus Credentials**
    - Kind: Username with password
@@ -419,7 +441,7 @@ chmod +x scripts/push-images.sh
 
 #### 4.1 Configure kubectl
 ```bash
-aws eks update-kubeconfig --region us-east-1 --name ecommerce-cluster
+aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
 ```
 
 #### 4.2 Create Namespace
@@ -438,7 +460,7 @@ chmod +x scripts/setup-cloudnativepg.sh
 # Or manually apply the manifest
 kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
 
-# Wait for cluster to be ready (3 instances: 1 primary + 2 replicas)
+# Wait for cluster to be ready (2 instances: 1 primary + 1 replica)
 kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=300s
 
 # Verify
@@ -448,7 +470,7 @@ kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
 
 **CloudNativePG Features:**
 - **Automatic Failover**: Kubernetes-native leader election promotes replica to primary automatically
-- **Multi-AZ Distribution**: Pods spread across 3 availability zones via pod anti-affinity
+- **Multi-AZ Distribution**: Pods spread across 2 availability zones via pod anti-affinity
 - **Streaming Replication**: Synchronous replication between primary and replicas
 - **Self-Healing**: Failed pods are automatically recreated and rejoin the cluster
 
@@ -544,7 +566,8 @@ kubectl logs -f deployment/api-gateway -n production
 
 The following plugins are already installed via userdata:
 - Pipeline, Git, GitHub Integration
-- Docker Pipeline, Kubernetes CLI
+- Docker Pipeline, Kubernetes CLI, Kubernetes Credentials
+- Credentials Binding
 - SonarQube Scanner, Nexus Artifact Uploader
 
 If any are missing, install via: Manage Jenkins → Plugins → Available
@@ -719,8 +742,7 @@ CREATE TABLE order_items (
 3. **Update Image Tags** - Update deployment manifests
 4. **Deploy to EKS** - Apply to Kubernetes
 5. **Verify Rollout** - Check deployment status
-6. **Smoke Tests** - Run health checks
-7. **Commit Manifests** - GitOps update
+6. **Commit Manifests** - GitOps update
 
 ## Production Checklist
 

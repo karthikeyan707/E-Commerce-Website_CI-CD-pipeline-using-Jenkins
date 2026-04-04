@@ -194,7 +194,7 @@ docker-workflow
 kubernetes-cli
 kubernetes-credentials
 credentials-binding
-sonar
+AWS Credentials
 sonarqube-scanner
 nexus-artifact-uploader
 EOF
