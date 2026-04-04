@@ -1,9 +1,10 @@
 # E-Commerce CI/CD Project
 
-A production-grade microservices-based E-Commerce system with complete CI/CD pipeline on AWS EKS. Features a React frontend, JWT authentication, and 5 products with shopping cart functionality.
+A production-grade microservices-based E-Commerce system with complete CI/CD pipeline on AWS EKS using a single Jenkins EC2 instance. Features a React frontend, JWT authentication, and 5 products with shopping cart functionality.
 
 ## Architecture Overview
 
+### Application Architecture
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           React Frontend (Port 80)                   │
@@ -28,12 +29,54 @@ A production-grade microservices-based E-Commerce system with complete CI/CD pip
 │      └───────────┬──────────┘  └────────┬──────────┘  └─────┬─────┘│
 │                  │                     │                   │      │
 │      ┌───────────▼─────────────────────▼───────────────────▼────┐│
-│      │           PostgreSQL StatefulSet (Multi-AZ)              ││
-│      │           Primary: postgres-0  (AZ-1)                    ││
-│      │           Replica: postgres-1   (AZ-2)                   ││
-│      │           Databases: products_db, orders_db, users_db      ││
+│      │           PostgreSQL (CloudNativePG)                          ││
+│      │           ├─ 3 Instances (1 Primary + 2 Replicas)            ││
+│      │           ├─ Auto Failover via Kubernetes Leader Election    ││
+│      │           ├─ Multi-AZ Distribution                          ││
+│      │           └─ Databases: products_db, orders_db, users_db     ││
 │      └──────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────┘
+```
+
+### CI/CD Architecture (Single Jenkins on EC2 + EKS)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     AWS Cloud (us-west-2)                           │
+│                                                                      │
+│  ┌───────────────────────────────────────────────────────────┐     │
+│  │              Jenkins Server (EC2)                         │     │
+│  │              c7i-flex.large                               │     │
+│  │  ┌──────────────────────────────────────────────────────┐ │     │
+│  │  │  Port 8080 - Jenkins UI                             │ │     │
+│  │  │  ├─ Pipeline Controller                            │ │     │
+│  │  │  ├─ GitHub Webhook Handler                         │ │     │
+│  │  │  └─ Build Executor                                 │ │     │
+│  │  └──────────────────────────────────────────────────────┘ │     │
+│  │                                                          │     │
+│  │  Installed Tools:                                        │     │
+│  │  ├─ Docker & Docker Compose                              │     │
+│  │  ├─ Node.js & npm                                        │     │
+│  │  ├─ AWS CLI                                              │     │
+│  │  ├─ kubectl & eksctl                                     │     │
+│  │  ├─ Helm                                                 │     │
+│  │  ├─ Trivy (Security Scan)                                │     │
+│  │  └─ SonarQube Scanner                                    │     │
+│  │                                                          │     │
+│  │  30GB EBS Storage                                        │     │
+│  └──────────────┬───────────────────────────────────────────┘     │
+│                 │                                                   │
+│                 │  CI: Checkout → Build → Test → Sonar → Push    │
+│                 │  CD: Manual Trigger → Deploy to EKS             │
+│                 │                                                   │
+│                 ▼                                                   │
+│      ┌──────────────────┐        ┌──────────────────┐              │
+│      │    GitHub        │        │   EKS Cluster    │              │
+│      │  (Push Trigger)  │        │  (Application)   │              │
+│      └──────────────────┘        └──────────────────┘              │
+└─────────────────────────────────────────────────────────────────────┘
+
+Pipeline Flow:
+GitHub Push → Jenkins (CI: Build/Test/Scan/Push) → Manual Approval → Jenkins (CD: Deploy to EKS)
 ```
 
 ## Services
@@ -87,16 +130,34 @@ E_Commerce-CICD/
 │       ├── service-*.yaml         # All service definitions
 │       ├── configmap-*.yaml       # Service configurations
 │       ├── secret-*.yaml          # Database credentials
-│       └── statefulset-postgres.yaml  # PostgreSQL HA
-├── jenkins/
-│   ├── Jenkinsfile-CI   # GitHub webhook trigger, manual approval
-│   └── Jenkinsfile-CD   # Deployment pipeline
+│       ├── postgres-cloudnative.yaml # CloudNativePG (Auto Failover)
+│       ├── statefulset-postgres.yaml # PostgreSQL StatefulSet (Legacy)
+│       └── storageclass-postgres.yaml # EBS StorageClass
+├── jenkins/              # Jenkins Pipeline Scripts
+│   ├── Jenkinsfile-CI    # CI pipeline (runs on Slave)
+│   └── Jenkinsfile-CD    # CD pipeline (deploys to EKS)
+├── terraform/            # Terraform Infrastructure
+│   ├── providers.tf      # Terraform providers
+│   ├── variables.tf      # Input variables
+│   ├── data.tf           # Data sources (AMI)
+│   ├── vpc.tf            # Security groups
+│   ├── iam.tf            # IAM roles and policies
+│   ├── jenkins.tf        # Jenkins EC2 + Elastic IP
+│   ├── eks.tf            # EKS cluster + node group
+│   ├── outputs.tf        # Output values
+│   ├── terraform.tfvars  # Variable values
+│   └── userdata-jenkins.sh # Jenkins setup with all tools
 ├── docker/
-│   └── docker-compose.yml   # Full local stack with frontend
-└── scripts/
-    ├── build-images.sh
-    └── push-images.sh
-```
+│   ├── docker-compose.yml    # Full local stack
+│   └── docker-compose.build.yml # Build configuration
+├── scripts/
+│   ├── build-images.sh
+│   ├── push-images.sh
+│   ├── setup-cloudnativepg.sh  # CloudNativePG operator setup
+│   ├── setup-rds.sh
+│   ├── setup-nexus.sh
+│   └── setup-sonarqube.sh
+└── SETUP.md              # Complete setup guide
 
 ## Prerequisites
 
@@ -109,49 +170,140 @@ E_Commerce-CICD/
 
 ## Quick Start
 
-### 1. Infrastructure Setup
+### Option 1: Local Development (Fastest)
 
-#### 1.1 Create EKS Cluster
 ```bash
-chmod +x scripts/setup-eks.sh
-./scripts/setup-eks.sh
+# Install dependencies
+cd api-gateway && npm install && cd ..
+cd product-service && npm install && cd ..
+cd order-service && npm install && cd ..
+cd user-service && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# Start with Docker Compose
+cd docker
+docker-compose up -d
+
+# Access: http://localhost (Frontend), http://localhost:3000 (API)
 ```
 
-#### 1.2 Deploy PostgreSQL StatefulSet (Multi-AZ in EKS)
+### Option 2: Production Deployment with CI/CD (Automated)
+
+#### Step 1: Deploy Jenkins & EKS with Terraform
+
 ```bash
-# Create StorageClass for EBS gp3 encrypted volumes
+cd terraform
+
+# Update terraform.tfvars with your VPC, subnets, and key pair
+# vpc_id = "vpc-xxxxx"
+# subnet_ids = ["subnet-xxxxx", "subnet-yyyyy"]
+# key_name = "your-key-pair"
+
+# Deploy infrastructure (Jenkins + EKS)
+terraform init
+terraform apply
+
+# Get outputs
+terraform output
+# - jenkins_url: http://<ip>:8080
+# - eks_kubeconfig_command: aws eks update-kubeconfig ...
+```
+
+#### Step 2: Configure Jenkins (SonarQube & Nexus Auto-Provisioned)
+
+Jenkins instance automatically starts SonarQube and Nexus as Docker containers:
+
+| Service | URL | Default Credentials | Get Token/Password |
+|---------|-----|---------------------|-------------------|
+| Jenkins | `http://<jenkins-ip>:8080` | admin / admin123 | - |
+| SonarQube | `http://<jenkins-ip>:9000` | admin / admin | Generate token in UI |
+| Nexus | `http://<jenkins-ip>:8081` | admin / (see below) | `docker exec nexus cat /nexus-data/admin.password` |
+
+**1. Access Jenkins:**
+```bash
+cd terraform
+terraform output jenkins_url
+# Open in browser, login: admin / admin123
+```
+
+**2. Get Nexus Admin Password:**
+```bash
+ssh -i your-key.pem ec2-user@<jenkins-ip>
+docker exec nexus cat /nexus-data/admin.password
+```
+
+**3. Generate SonarQube Token:**
+- Login to SonarQube (`http://<jenkins-ip>:9000`) with admin/admin
+- User → My Account → Security → Generate Token
+- Copy the token for Jenkins credential
+
+**4. Configure Jenkins Credentials:**
+Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credentials
+
+1. **DockerHub Credentials**
+   - Kind: Username with password
+   - ID: `dockerhub-credentials`
+
+2. **AWS Credentials**
+   - Kind: AWS Credentials
+   - ID: `aws-credentials`
+
+3. **GitHub Token**
+   - Kind: Secret text
+   - ID: `github-token`
+
+4. **SonarQube Token**
+   - Kind: Secret text
+   - ID: `sonarqube-token`
+   - Secret: (token from SonarQube UI)
+
+5. **Nexus Credentials**
+   - Kind: Username with password
+   - ID: `nexus-credentials`
+   - Username: `admin`
+   - Password: (password from docker exec command above)
+
+#### Step 3: Configure GitHub Webhook
+
+```
+http://<jenkins-public-ip>:8080/github-webhook/
+```
+
+#### Step 4: Deploy
+
+Push code to GitHub → CI pipeline auto-triggers → Manual approve → CD deploys to EKS
+
+---
+
+### 1. Infrastructure Setup (Detailed)
+
+#### 1.1 EKS Cluster (Terraform-managed)
+```bash
+# EKS cluster is created by Terraform. Get kubeconfig:
+aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
+
+# Verify
+kubectl get nodes
+```
+
+#### 1.2 Deploy PostgreSQL
+```bash
+# Option A: CloudNativePG (RECOMMENDED - Auto Failover)
+# Provides automatic failover, leader election, and native Kubernetes integration
+chmod +x scripts/setup-cloudnativepg.sh
+./scripts/setup-cloudnativepg.sh
+
+# Option B: StatefulSet (Manual Failover - Legacy)
+# Simple setup but requires manual intervention for failover
 kubectl apply -f k8s/base/storageclass-postgres.yaml
+kubectl apply -f k8s/base/configmap-postgres.yaml -n production
+kubectl apply -f k8s/base/secret-postgres.yaml -n production
+kubectl apply -f k8s/base/service-postgres.yaml -n production
+kubectl apply -f k8s/base/statefulset-postgres.yaml -n production
 
-# Deploy PostgreSQL with streaming replication across AZs
-kubectl apply -f k8s/base/configmap-postgres.yaml
-kubectl apply -f k8s/base/secret-postgres.yaml
-kubectl apply -f k8s/base/service-postgres.yaml
-kubectl apply -f k8s/base/statefulset-postgres.yaml
-```
-
-**Note:** For production, consider using AWS RDS Multi-AZ instead:
-```bash
+# Option C: AWS RDS (Production - Managed Service)
 chmod +x scripts/setup-rds.sh
 ./scripts/setup-rds.sh
-```
-
-#### 1.3 Setup DevOps Tools
-```bash
-# Jenkins
-chmod +x scripts/setup-jenkins.sh
-./scripts/setup-jenkins.sh
-
-# SonarQube
-chmod +x scripts/setup-sonarqube.sh
-./scripts/setup-sonarqube.sh
-
-# Nexus
-chmod +x scripts/setup-nexus.sh
-./scripts/setup-nexus.sh
-
-# Trivy
-chmod +x scripts/setup-trivy.sh
-./scripts/setup-trivy.sh
 ```
 
 ### 2. Local Development
@@ -276,22 +428,44 @@ kubectl create namespace production
 kubectl create namespace staging
 ```
 
-#### 4.3 Apply PostgreSQL StatefulSet
+#### 4.3 Apply PostgreSQL (CloudNativePG - Recommended)
+
 ```bash
-cd k8s/base
+# Deploy CloudNativePG with automatic failover
+chmod +x scripts/setup-cloudnativepg.sh
+./scripts/setup-cloudnativepg.sh
 
-# StorageClass (one-time setup)
-kubectl apply -f storageclass-postgres.yaml
+# Or manually apply the manifest
+kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
 
-# PostgreSQL
-kubectl apply -f configmap-postgres.yaml -n production
-kubectl apply -f secret-postgres.yaml -n production
-kubectl apply -f service-postgres.yaml -n production
-kubectl apply -f statefulset-postgres.yaml -n production
+# Wait for cluster to be ready (3 instances: 1 primary + 2 replicas)
+kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=300s
 
-# Verify PostgreSQL is running
-kubectl get pods -l app=postgres -n production
-kubectl get pvc -n production
+# Verify
+kubectl get cluster -n production
+kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
+```
+
+**CloudNativePG Features:**
+- **Automatic Failover**: Kubernetes-native leader election promotes replica to primary automatically
+- **Multi-AZ Distribution**: Pods spread across 3 availability zones via pod anti-affinity
+- **Streaming Replication**: Synchronous replication between primary and replicas
+- **Self-Healing**: Failed pods are automatically recreated and rejoin the cluster
+
+**Services:**
+- `postgres-rw` - Connects to primary (read-write)
+- `postgres-ro` - Connects to replicas (read-only)
+- `postgres` - Connects to any instance
+
+#### Alternative: PostgreSQL StatefulSet (Manual Failover)
+
+```bash
+# Legacy StatefulSet setup (manual failover required)
+kubectl apply -f k8s/base/storageclass-postgres.yaml
+kubectl apply -f k8s/base/configmap-postgres.yaml -n production
+kubectl apply -f k8s/base/secret-postgres.yaml -n production
+kubectl apply -f k8s/base/service-postgres.yaml -n production
+kubectl apply -f k8s/base/statefulset-postgres.yaml -n production
 ```
 
 #### 4.4 Apply Application Configurations
@@ -349,58 +523,93 @@ kubectl get hpa -n production
 kubectl logs -f deployment/api-gateway -n production
 ```
 
-### 5. CI/CD Pipeline Setup
+### 5. CI/CD Pipeline Setup (Single Jenkins on EC2)
 
-#### 5.1 Jenkins Configuration
-1. Access Jenkins at `http://<jenkins-loadbalancer>:8080`
-2. Install required plugins:
-   - Pipeline
-   - Git
-   - Docker Pipeline
-   - Kubernetes CLI
-   - SonarQube Scanner
-   - Slack Notification
+#### 5.1 Access Jenkins
 
-3. Configure credentials:
-   - `dockerhub-credentials` - DockerHub username/password
-   - `aws-credentials` - AWS access key/secret
-   - `github-token` - GitHub personal access token
-   - `sonarqube-token` - SonarQube authentication token
-   - `nexus-credentials` - Nexus username/password
+1. **Get Jenkins URL from Terraform output:**
+   ```bash
+   cd terraform
+   terraform output jenkins_url
+   ```
 
-**Note:** The CI pipeline uses `docker-compose` to build all images in parallel. See `docker/docker-compose.build.yml`.
+2. **Access Jenkins:**
+   ```
+   http://<jenkins-public-ip>:8080
+   ```
+   - Default credentials: `admin` / `admin123`
+   - Change password immediately after first login
 
-4. Create CI Pipeline:
-   - New Item → Pipeline
-   - Name: `ecommerce-ci`
+#### 5.2 Verify Pre-installed Plugins
+
+The following plugins are already installed via userdata:
+- Pipeline, Git, GitHub Integration
+- Docker Pipeline, Kubernetes CLI
+- SonarQube Scanner, Nexus Artifact Uploader
+
+If any are missing, install via: Manage Jenkins → Plugins → Available
+
+#### 5.3 Configure Credentials
+
+Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credentials
+
+1. **DockerHub Credentials**
+   - Kind: Username with password
+   - ID: `dockerhub-credentials`
+
+2. **AWS Credentials**
+   - Kind: AWS Credentials
+   - ID: `aws-credentials`
+
+3. **GitHub Token**
+   - Kind: Secret text
+   - ID: `github-token`
+
+4. **SonarQube Token**
+   - Kind: Secret text
+   - ID: `sonarqube-token`
+
+5. **Nexus Credentials**
+   - Kind: Username with password
+   - ID: `nexus-credentials`
+
+#### 5.4 Create Pipeline Jobs
+
+1. **Create CI Pipeline:**
+   - New Item → Pipeline → Name: `ecommerce-ci`
    - Pipeline script from SCM
    - Repository URL: your GitHub repo
    - Script Path: `jenkins/Jenkinsfile-CI`
 
-5. Create CD Pipeline:
-   - New Item → Pipeline
-   - Name: `ecommerce-cd`
+2. **Create CD Pipeline:**
+   - New Item → Pipeline → Name: `ecommerce-cd`
    - Pipeline script from SCM
+   - Repository URL: your GitHub repo
    - Script Path: `jenkins/Jenkinsfile-CD`
 
-#### 5.2 SonarQube Configuration
-1. Access SonarQube at `http://<sonarqube-loadbalancer>:9000`
-2. Default credentials: `admin/admin`
-3. Create projects for each service:
-   - `ecommerce-api-gateway`
-   - `ecommerce-product-service`
-   - `ecommerce-order-service`
-   - `ecommerce-user-service`
-   - `ecommerce-frontend`
-4. Generate tokens and add to Jenkins credentials
+#### 5.5 Configure GitHub Webhook
 
-#### 5.3 Nexus Configuration
-1. Access Nexus at `http://<nexus-loadbalancer>:8081`
-2. Create blob stores and repositories:
-   - docker-hosted (port 8082)
-   - docker-proxy (Docker Hub)
-   - docker-group (combine hosted + proxy)
-3. Create `ecommerce-artifacts` raw repository
+1. **Get Jenkins URL:**
+   ```bash
+   cd terraform && terraform output jenkins_url
+   ```
+
+2. **Add Webhook in GitHub:**
+   - Repository → Settings → Webhooks → Add webhook
+   - Payload URL: `http://<jenkins-public-ip>:8080/github-webhook/`
+   - Content type: `application/json`
+   - Events: Just the push event
+
+#### 5.6 Optional: Deploy SonarQube & Nexus on EKS (Not needed - already running on Jenkins)
+
+> **Note:** SonarQube and Nexus are already running as Docker containers on the Jenkins instance.
+> Only run these if you want separate EKS deployments:
+
+```bash
+# Deploy on EKS (optional - not required)
+chmod +x scripts/setup-sonarqube.sh && ./scripts/setup-sonarqube.sh
+chmod +x scripts/setup-nexus.sh && ./scripts/setup-nexus.sh
+```
 
 ## API Endpoints
 

@@ -19,6 +19,8 @@ spec:
       labels:
         app: order-service
     spec:
+      nodeSelector:
+        workload-type: application
       containers:
         - name: order-service
           image: your-dockerhub-username/order-service:latest

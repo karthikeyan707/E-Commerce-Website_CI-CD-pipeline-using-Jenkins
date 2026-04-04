@@ -1,0 +1,167 @@
+# CloudNativePG Cluster - PostgreSQL with Automatic Failover
+# This replaces the StatefulSet PostgreSQL with a CloudNativePG operator-managed cluster
+# Provides: Automatic failover, leader election, streaming replication, backups
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-cluster
+  labels:
+    app: postgres
+spec:
+  # PostgreSQL version
+  imageName: ghcr.io/cloudnative-pg/postgresql:15.4
+
+  # Number of instances (Primary + 1 Replica across 2 AZs)
+  instances: 2
+
+  # Storage configuration
+  storage:
+    size: 20Gi
+    storageClass: gp3-multi-az
+
+  # Enable storage expansion
+  storageExpansion:
+    enabled: true
+
+  # PostgreSQL configuration
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "768MB"
+      maintenance_work_mem: "64MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "300"
+      work_mem: "655kB"
+      min_wal_size: "1GB"
+      max_wal_size: "4GB"
+      max_worker_processes: "4"
+      max_parallel_workers_per_gather: "2"
+      max_parallel_workers: "4"
+      max_parallel_maintenance_workers: "2"
+
+  # Database initialization
+  bootstrap:
+    initdb:
+      database: ecommerce
+      owner: postgres
+      secret:
+        name: postgres-credentials
+      # Create multiple databases for microservices
+      postInitSQLRefs:
+        secretRefs:
+          - name: postgres-init-sql
+            key: init-databases.sql
+
+  # Monitoring (optional - requires Prometheus)
+  monitoring:
+    enabled: false
+    customQueriesConfigMap:
+      name: cnpg-custom-queries
+      key: queries
+
+  # Priority class for production
+  priorityClassName: system-cluster-critical
+
+  # Affinity rules for Multi-AZ distribution
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+    podAntiAffinityType: required
+
+  # Node selector for database nodes (private subnets)
+  nodeSelector:
+    workload-type: database
+
+  # Tolerations for dedicated database nodes
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: database
+      effect: NoSchedule
+
+  # Backup configuration (optional - requires S3)
+  # backup:
+  #   enabled: true
+  #   retentionPolicy: "30d"
+  #   schedule:
+  #     cron: "0 2 * * *"  # Daily at 2 AM
+  #     suspend: false
+  #   s3:
+  #     path: s3://your-backup-bucket/postgres-backups
+  #     region: us-west-2
+  #     credentials:
+  #       name: aws-creds
+  #       key: ACCESS_KEY_ID
+  #       secretKey: SECRET_ACCESS_KEY
+
+  # Failover configuration
+  failoverSwitchoverDelay: 60
+
+  # Replication settings
+  replicationSlots:
+    highAvailability:
+      enabled: true
+      slotPrefix: _cnpg_
+
+  # Connection pooling (PgBouncer can be added separately)
+
+---
+# Service to expose the primary (read-write)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-rw
+  labels:
+    app: postgres
+    cnpg.io/cluster: postgres-cluster
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-cluster
+    cnpg.io/instanceRole: primary
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# Service to expose replicas (read-only)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-ro
+  labels:
+    app: postgres
+    cnpg.io/cluster: postgres-cluster
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-cluster
+    cnpg.io/instanceRole: replica
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# Service for any instance (fallback)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+    cnpg.io/cluster: postgres-cluster
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-cluster
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

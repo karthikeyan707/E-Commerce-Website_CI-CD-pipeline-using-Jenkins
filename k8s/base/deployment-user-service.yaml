@@ -14,6 +14,8 @@ spec:
       labels:
         app: user-service
     spec:
+      nodeSelector:
+        workload-type: application
       containers:
         - name: user-service
           image: your-dockerhub-username/user-service:latest
