@@ -221,11 +221,12 @@ CloudNativePG provides automatic failover, leader election, and native Kubernete
 chmod +x scripts/setup-cloudnativepg.sh
 ./scripts/setup-cloudnativepg.sh
 
-# Or manually deploy
-kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
-
 # Wait for cluster to be ready
 kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=300s
+
+# Create databases for microservices
+chmod +x scripts/create-databases.sh
+./scripts/create-databases.sh
 
 # Verify cluster status
 kubectl get cluster -n production

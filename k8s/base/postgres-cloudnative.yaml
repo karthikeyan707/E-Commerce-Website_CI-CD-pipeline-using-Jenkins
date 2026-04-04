@@ -20,10 +20,6 @@ spec:
     size: 20Gi
     storageClass: gp3-multi-az
 
-  # Enable storage expansion
-  storageExpansion:
-    enabled: true
-
   # PostgreSQL configuration
   postgresql:
     parameters:
@@ -51,18 +47,6 @@ spec:
       owner: postgres
       secret:
         name: postgres-credentials
-      # Create multiple databases for microservices
-      postInitSQLRefs:
-        secretRefs:
-          - name: postgres-init-sql
-            key: init-databases.sql
-
-  # Monitoring (optional - requires Prometheus)
-  monitoring:
-    enabled: false
-    customQueriesConfigMap:
-      name: cnpg-custom-queries
-      key: queries
 
   # Priority class for production
   priorityClassName: system-cluster-critical
@@ -72,17 +56,6 @@ spec:
     enablePodAntiAffinity: true
     topologyKey: topology.kubernetes.io/zone
     podAntiAffinityType: required
-
-  # Node selector for database nodes (private subnets)
-  nodeSelector:
-    workload-type: database
-
-  # Tolerations for dedicated database nodes
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: database
-      effect: NoSchedule
 
   # Backup configuration (optional - requires S3)
   # backup:
@@ -98,9 +71,6 @@ spec:
   #       name: aws-creds
   #       key: ACCESS_KEY_ID
   #       secretKey: SECRET_ACCESS_KEY
-
-  # Failover configuration
-  failoverSwitchoverDelay: 60
 
   # Replication settings
   replicationSlots:

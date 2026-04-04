@@ -457,11 +457,12 @@ kubectl create namespace staging
 chmod +x scripts/setup-cloudnativepg.sh
 ./scripts/setup-cloudnativepg.sh
 
-# Or manually apply the manifest
-kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
-
 # Wait for cluster to be ready (2 instances: 1 primary + 1 replica)
 kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=300s
+
+# Create databases for microservices
+chmod +x scripts/create-databases.sh
+./scripts/create-databases.sh
 
 # Verify
 kubectl get cluster -n production
