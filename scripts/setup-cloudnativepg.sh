@@ -126,10 +126,17 @@ echo "Step 7: Creating databases for microservices..."
 echo "================================"
 
 # Create databases manually since postInitSQLRefs is not supported in this CloudNativePG version
-kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE IF NOT EXISTS products_db;" 2>/dev/null || true
-kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE IF NOT EXISTS orders_db;" 2>/dev/null || true
-kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE IF NOT EXISTS users_db;" 2>/dev/null || true
+# Use PostgreSQL syntax (no IF NOT EXISTS for CREATE DATABASE)
+echo "Creating products_db..."
+kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'products_db'" 2>/dev/null | grep -q 1 || kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE products_db;" 2>/dev/null || true
 
+echo "Creating orders_db..."
+kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'orders_db'" 2>/dev/null | grep -q 1 || kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE orders_db;" 2>/dev/null || true
+
+echo "Creating users_db..."
+kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'users_db'" 2>/dev/null | grep -q 1 || kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "CREATE DATABASE users_db;" 2>/dev/null || true
+
+echo "Granting privileges..."
 kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE products_db TO postgres;" 2>/dev/null || true
 kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE orders_db TO postgres;" 2>/dev/null || true
 kubectl exec -it postgres-cluster-1 -n production -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE users_db TO postgres;" 2>/dev/null || true
