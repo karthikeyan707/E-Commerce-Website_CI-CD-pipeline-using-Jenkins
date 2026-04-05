@@ -234,7 +234,7 @@ kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
 ```
 
 **Prerequisites:**
-- EBS CSI driver addon installed (handled automatically by setup script)
+- EBS CSI driver addon (installed automatically by Terraform during EKS creation)
 - IAM role with `AmazonEBSCSIDriverPolicy` attached (already added to terraform/iam.tf)
 
 **Features:**
@@ -717,7 +717,60 @@ cat ~/.kube/config
 aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
 ```
 
-#### 7. Ingress Not Working
+#### 8. EBS CSI Driver Issues (PVC Stuck Pending)
+
+If PostgreSQL PVC is stuck in `Pending` status:
+
+```bash
+# Check PVC status
+kubectl get pvc -n production
+
+# Check PVC events for errors
+kubectl describe pvc postgres-cluster-1 -n production
+
+# Check EBS CSI driver pods
+kubectl get pods -n kube-system | grep ebs
+
+# Check EBS CSI controller logs
+kubectl logs -n kube-system deployment/ebs-csi-controller -c ebs-plugin
+
+# Check addon status
+eksctl get addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2
+```
+
+**Common Solutions:**
+
+1. **Verify IAM Policy Attached:**
+   ```bash
+   aws iam list-attached-role-policies --role-name eks-node-role
+   # Should show: AmazonEBSCSIDriverPolicy
+   ```
+
+2. **Recreate Addon (if needed):**
+   ```bash
+   # Delete existing addon
+   eksctl delete addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2
+   
+   # Reinstall via eksctl
+   eksctl create addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2
+   
+   # Wait for ACTIVE status
+   eksctl get addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2
+   ```
+
+3. **Delete and Recreate PVC:**
+   ```bash
+   # Delete PostgreSQL cluster to release PVC
+   kubectl delete cluster postgres-cluster -n production
+   
+   # Delete stuck PVC
+   kubectl delete pvc postgres-cluster-1 -n production
+   
+   # Recreate cluster
+   kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
+   ```
+
+#### 9. Ingress Not Working
 ```bash
 # Check Ingress controller
 kubectl get pods -n ingress-nginx
