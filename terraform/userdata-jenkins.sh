@@ -108,26 +108,56 @@ echo "Jenkins installation complete"
 #===============================================================================
 # Install Docker (Amazon Linux 2023 native package)
 #===============================================================================
+
 echo "Installing Docker..."
 
-# Install Docker from Amazon Linux 2023 repositories
 dnf install -y docker
 
-# Install Docker Compose
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-
-# Start Docker
+# Start & enable Docker
 systemctl enable docker
 systemctl start docker
 
-# Verify installations
-docker --version
-docker-compose --version
-
-# Add jenkins user to docker group
+# Add ec2-user and jenkins to docker group
 usermod -aG docker jenkins
+
+#===============================================================================
+# Install Docker Compose V2 (plugin)
+#===============================================================================
+echo "Installing Docker Compose V2..."
+
+mkdir -p /usr/libexec/docker/cli-plugins
+
+curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 \
+  -o /usr/libexec/docker/cli-plugins/docker-compose
+
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+#===============================================================================
+# Install Docker Buildx (REQUIRED)
+#===============================================================================
+echo "Installing Docker Buildx..."
+
+curl -SL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 \
+  -o /usr/libexec/docker/cli-plugins/docker-buildx
+
+chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+
+#===============================================================================
+# Restart Docker
+#===============================================================================
+systemctl restart docker
+
+#===============================================================================
+# Verify installations
+#===============================================================================
+echo "Docker version:"
+docker --version
+
+echo "Compose version:"
+docker compose version
+
+echo "Buildx version:"
+docker buildx version
 
 #===============================================================================
 # Install AWS CLI

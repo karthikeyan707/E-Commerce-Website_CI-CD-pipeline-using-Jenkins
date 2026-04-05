@@ -11,7 +11,7 @@ pipeline {
         SONARQUBE_TOKEN = credentials('sonarqube-token')
         NEXUS_URL = 'localhost:8081'
         NEXUS_CREDENTIALS = credentials('nexus-credentials')
-        DOCKERHUB_USERNAME = credentials('dockerhub-credentials').username
+        DOCKERHUB_USERNAME = 'ukarthikeyan'
         SERVICES = 'api-gateway product-service order-service user-service frontend'
         BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d%H%M%S', returnStdout: true).trim()
         GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
@@ -94,17 +94,17 @@ pipeline {
                     env.IMAGE_TAG = "${env.GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
                     echo "Building images with tag: ${env.IMAGE_TAG}"
 
-          sh """
-                    cd docker
+                    sh """
+                       cd docker
 
-                    export IMAGE_TAG=${IMAGE_TAG}
-                    export DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+                       export IMAGE_TAG=${IMAGE_TAG}
+                       export DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
 
-                    docker compose -f docker-compose.build.yml build
+                       docker compose -f docker-compose.build.yml build
 
-                    for service in ${SERVICES}; do
-                        docker tag \$DOCKERHUB_USERNAME/\$service:\$IMAGE_TAG \$DOCKERHUB_USERNAME/\$service:latest
-                    done
+                       for service in ${SERVICES}; do
+                           docker tag \$DOCKERHUB_USERNAME/\$service:\$IMAGE_TAG \$DOCKERHUB_USERNAME/\$service:latest
+                       done
                     """
                 }
             }

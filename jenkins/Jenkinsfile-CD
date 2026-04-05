@@ -5,7 +5,7 @@ pipeline {
     environment {
         AWS_CREDENTIALS = credentials('aws-credentials')
         GITHUB_CREDENTIALS = credentials('github-token')
-        DOCKERHUB_USERNAME = credentials('dockerhub-credentials').username
+        DOCKERHUB_USERNAME = 'ukarthikeyan'
         EKS_CLUSTER_NAME = 'ecommerce-cluster'
         AWS_REGION = 'us-west-2'
         K8S_REPO = 'https://github.com/karthikeyan707/E-Commerce-Website_CI-CD-pipeline-using-Jenkins.git'
