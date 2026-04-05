@@ -257,13 +257,14 @@ c. **Create Repository:**
    - Deployment Policy: `Allow redeploy`
    - Click **Create repository**
 
-**4. Configure Jenkins Credentials:**
+**4. Configure Credentials**
 
 Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credentials
 
 1. **DockerHub Credentials**
    - Kind: Username with password
    - ID: `dockerhub-credentials`
+   - Note: Jenkinsfiles automatically read DockerHub username from this credential
 
 2. **AWS Credentials**
    - Kind: AWS Credentials
@@ -284,6 +285,8 @@ Navigate to: Manage Jenkins → Manage Credentials → Global → Add Credential
    - ID: `nexus-credentials`
    - Username: `admin`
    - Password: (password from docker exec command above)
+
+> **Note:** The Jenkinsfiles (`jenkins/Jenkinsfile-CI` and `jenkins/Jenkinsfile-CD`) are pre-configured to use these credential IDs. The `DOCKERHUB_USERNAME` and `K8S_REPO` variables are automatically set from credentials or the repository URL.
 
 #### Step 3: Configure GitHub Webhook
 

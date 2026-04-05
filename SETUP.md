@@ -538,6 +538,7 @@ In Jenkins: Manage Jenkins → Manage Credentials → Global
 
 1. **dockerhub-credentials** (Username/Password)
    - Your DockerHub username and password/token
+   - Jenkinsfiles automatically read DockerHub username from this credential
 
 2. **aws-credentials** (AWS Credentials)
    - AWS Access Key and Secret Key
@@ -553,6 +554,8 @@ In Jenkins: Manage Jenkins → Manage Credentials → Global
    - Username: `admin`
    - Password: Get from `docker exec nexus cat /nexus-data/admin.password`
    - Nexus URL: `http://localhost:8081` (from Jenkins instance)
+
+> **Note:** The Jenkinsfiles (`jenkins/Jenkinsfile-CI` and `jenkins/Jenkinsfile-CD`) are pre-configured to use these credential IDs. The `DOCKERHUB_USERNAME` and `K8S_REPO` variables are automatically set from credentials or the repository URL.
 
 ### Configure GitHub Webhook
 
