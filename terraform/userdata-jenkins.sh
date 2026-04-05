@@ -15,13 +15,11 @@ until ping -c1 8.8.8.8 &>/dev/null; do sleep 1; done
 echo "Updating system packages..."
 dnf -y update
 
-echo "Refreshing metadata..."
-dnf -y clean all
-dnf -y makecache
-
 # Install base dependencies
 echo "Installing base dependencies..."
-dnf install -y wget curl unzip git fontconfig
+dnf install -y wget unzip git fontconfig
+
+dnf install -y curl --allowerasing
 
 #===============================================================================
 # Install Java
@@ -43,6 +41,7 @@ echo "Installing Jenkins via WAR file..."
 # Create directories and user
 mkdir -p /opt /var/lib/jenkins
 useradd --system --create-home --home-dir /var/lib/jenkins jenkins 2>/dev/null || true
+usermod -aG wheel jenkins
 
 # Download Jenkins WAR (Latest Stable)
 curl -L -o /opt/jenkins.war https://get.jenkins.io/war-stable/latest/jenkins.war
@@ -179,39 +178,6 @@ ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
 rm -f sonar-scanner-cli-5.0.1.3006-linux.zip
 sonar-scanner --version
 
-#===============================================================================
-# Configure Jenkins Plugins (after Jenkins starts)
-#===============================================================================
-echo "Waiting for Jenkins to start..."
-sleep 45
-
-echo "Configuring Jenkins plugins..."
-cat > /tmp/plugins.txt << 'EOF'
-workflow-aggregator
-git
-github
-docker-workflow
-kubernetes-cli
-kubernetes-credentials
-credentials-binding
-AWS Credentials
-sonarqube-scanner
-nexus-artifact-uploader
-EOF
-
-# Install plugins if CLI is available
-if [ -f /var/lib/jenkins/secrets/initialAdminPassword ]; then
-    curl -L -o /usr/local/bin/jenkins-cli.jar http://localhost:8080/jnlpJars/jenkins-cli.jar 2>/dev/null || true
-    if [ -f /usr/local/bin/jenkins-cli.jar ]; then
-        while read plugin; do
-            java -jar /usr/local/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:admin123 install-plugin $plugin 2>/dev/null || true
-        done < /tmp/plugins.txt
-        java -jar /usr/local/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:admin123 safe-restart 2>/dev/null || true
-    fi
-fi
-
-# Wait for Jenkins to restart
-sleep 30
 
 #===============================================================================
 # Start SonarQube (Docker)
