@@ -26,7 +26,7 @@ resource "aws_security_group" "jenkins_sg" {
     from_port   = 9000
     to_port     = 9000
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
     description = "Jenkins Web UI"
  }
  
@@ -34,7 +34,7 @@ resource "aws_security_group" "jenkins_sg" {
     from_port   = 8081
     to_port     = 8081
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
     description = "Jenkins Web UI"
   }
 
