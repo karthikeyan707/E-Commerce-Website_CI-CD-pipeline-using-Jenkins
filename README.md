@@ -472,6 +472,9 @@ kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
 **CloudNativePG Features:**
 - **Automatic Failover**: Kubernetes-native leader election promotes replica to primary automatically
 - **Multi-AZ Distribution**: Pods spread across 2 availability zones via pod anti-affinity
+- **Prerequisites**: 
+  - EBS CSI driver addon installed (via eksctl - see setup script)
+  - IAM role with `AmazonEBSCSIDriverPolicy` attached
 - **Streaming Replication**: Synchronous replication between primary and replicas
 - **Self-Healing**: Failed pods are automatically recreated and rejoin the cluster
 

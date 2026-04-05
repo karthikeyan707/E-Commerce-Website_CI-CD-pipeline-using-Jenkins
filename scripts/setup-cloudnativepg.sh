@@ -70,7 +70,44 @@ stringData:
 EOF
 
 echo ""
-echo "Step 4: Creating StorageClass for PostgreSQL..."
+echo "Step 4: Installing EBS CSI Driver (EKS Managed Addon)..."
+echo "================================"
+
+# Check if EBS CSI driver addon is already installed
+ADDON_STATUS=$(eksctl get addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2 2>/dev/null | grep -v "NAME" | awk '{print $3}' || echo "NOT_INSTALLED")
+
+if [ "$ADDON_STATUS" = "ACTIVE" ]; then
+    echo "EBS CSI driver addon is already active, skipping..."
+elif [ "$ADDON_STATUS" = "CREATING" ]; then
+    echo "EBS CSI driver addon is already being created, waiting for it to be ready..."
+    echo "This may take 3-5 minutes..."
+    while [ "$ADDON_STATUS" != "ACTIVE" ]; do
+        sleep 30
+        ADDON_STATUS=$(eksctl get addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2 2>/dev/null | grep -v "NAME" | awk '{print $3}')
+        echo "Current status: $ADDON_STATUS"
+    done
+else
+    echo "Installing EBS CSI driver managed addon via eksctl..."
+    echo "This may take 3-5 minutes..."
+    eksctl create addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2 --force
+    
+    # Wait for addon to be active
+    echo "Waiting for EBS CSI driver addon to be active..."
+    while [ "$ADDON_STATUS" != "ACTIVE" ]; do
+        sleep 30
+        ADDON_STATUS=$(eksctl get addon --name aws-ebs-csi-driver --cluster ecommerce-cluster --region us-west-2 2>/dev/null | grep -v "NAME" | awk '{print $3}')
+        echo "Current status: $ADDON_STATUS"
+    done
+    echo "EBS CSI driver addon is active!"
+fi
+
+# Remove any manually installed EBS CSI driver pods if they exist
+kubectl delete deployment ebs-csi-controller -n kube-system 2>/dev/null || true
+kubectl delete daemonset ebs-csi-node -n kube-system 2>/dev/null || true
+echo "EBS CSI driver setup complete!"
+
+echo ""
+echo "Step 5: Creating StorageClass for PostgreSQL..."
 echo "================================"
 
 # Create StorageClass for gp3 multi-az
@@ -89,18 +126,28 @@ reclaimPolicy: Retain
 EOF
 
 echo ""
-echo "Step 5: Deploying CloudNativePG Cluster..."
+echo "Step 6: Deploying CloudNativePG Cluster..."
 echo "================================"
 
 # Deploy the PostgreSQL cluster
 kubectl apply -f k8s/base/postgres-cloudnative.yaml -n production
 
 echo ""
-echo "Step 6: Waiting for PostgreSQL cluster to be ready..."
+echo "Step 7: Waiting for PostgreSQL cluster to be ready..."
 echo "================================"
 
+echo "Note: This may take 5-10 minutes for the cluster to be fully ready."
+echo "If this times out, check status with: kubectl get cluster -n production"
+
 # Wait for cluster to be ready
-kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=300s
+kubectl wait --for=condition=Ready cluster/postgres-cluster -n production --timeout=600s || {
+    echo ""
+    echo "Warning: Timeout waiting for cluster to be ready."
+    echo "The cluster may still be initializing. Check status with:"
+    echo "  kubectl get cluster -n production"
+    echo "  kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production"
+    echo "  kubectl describe pvc -n production"
+}
 
 echo ""
 echo "================================"

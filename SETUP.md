@@ -233,9 +233,15 @@ kubectl get cluster -n production
 kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
 ```
 
+**Prerequisites:**
+- EBS CSI driver addon installed (handled automatically by setup script)
+- IAM role with `AmazonEBSCSIDriverPolicy` attached (already added to terraform/iam.tf)
+
 **Features:**
-- **Automatic Failover**: Kubernetes-native leader election
-- **Multi-AZ**: 2 instances (Primary + 1 Replica) spread across availability zones
+- **Automatic Failover**: Kubernetes-native leader election promotes replica to primary automatically
+- **Multi-AZ Distribution**: Pods spread across 2 availability zones via pod anti-affinity
+- **Streaming Replication**: Synchronous replication between primary and replicas
+- **Self-Healing**: Failed pods are automatically recreated and rejoin the cluster
 - **Services**: 
   - `postgres-rw` - Primary (read-write)
   - `postgres-ro` - Replicas (read-only) 
