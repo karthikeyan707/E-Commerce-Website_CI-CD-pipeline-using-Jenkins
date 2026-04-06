@@ -5,7 +5,7 @@ pipeline {
     environment {
         AWS_CREDENTIALS = credentials('aws-credentials')
         GITHUB_CREDENTIALS = credentials('github-token')
-        DOCKERHUB_USERNAME = credentials('dockerhub-credentials').username
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         EKS_CLUSTER_NAME = 'ecommerce-cluster'
         AWS_REGION = 'us-west-2'
         K8S_REPO = 'https://github.com/karthikeyan707/E-Commerce-Website_CI-CD-pipeline-using-Jenkins.git'
@@ -54,7 +54,7 @@ pipeline {
                 script {
                     def tag = params.IMAGE_TAG == 'latest' ? sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim() : params.IMAGE_TAG
                     SERVICES.split(' ').each { service ->
-                        sh "sed -i 's|image: ${DOCKERHUB_USERNAME}/${service}:.*|image: ${DOCKERHUB_USERNAME}/${service}:${tag}|g' k8s/base/deployment-${service}.yaml"
+                        sh "sed -i 's|image: ${DOCKERHUB_CREDENTIALS_USR}/${service}:.*|image: ${DOCKERHUB_CREDENTIALS_USR}/${service}:${tag}|g' k8s/base/deployment-${service}.yaml"
                     }
                     sh 'git diff k8s/base/'
                 }
