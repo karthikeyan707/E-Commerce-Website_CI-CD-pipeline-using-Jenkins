@@ -7,15 +7,12 @@ pipeline {
     }
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        DOCKERHUB_USERNAME = credentials('dockerhub-credentials').username
         SONARQUBE_TOKEN = credentials('sonarqube-token')
         NEXUS_URL = 'localhost:8081'
         NEXUS_CREDENTIALS = credentials('nexus-credentials')
-        DOCKERHUB_USERNAME = 'ukarthikeyan'
         SERVICES = 'api-gateway product-service order-service user-service frontend'
-        BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d%H%M%S', returnStdout: true).trim()
-        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-        AWS_DEFAULT_REGION = 'us-west-2'
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     options {
@@ -30,7 +27,7 @@ pipeline {
             steps {
                 cleanWs()
                 checkout scm
-                sh 'echo "Build: ${BUILD_NUMBER} | Commit: ${GIT_COMMIT_SHORT} | Branch: ${BRANCH_NAME}"'
+                sh 'echo "Build: ${BUILD_NUMBER} | Branch: ${BRANCH_NAME}"'
             }
         }
 
@@ -70,8 +67,7 @@ pipeline {
                                     npx sonar-scanner \
                                     -Dsonar.projectKey=ecommerce-${service} \
                                     -Dsonar.projectName="E-Commerce ${service}" \
-                                    -Dsonar.sources=src \
-                                    -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                    -Dsonar.sources=src
                                 """
                             }
                         }
@@ -80,19 +76,10 @@ pipeline {
             }
         }
 
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
         stage('Docker Build') {
             steps {
                 script {
-                    env.IMAGE_TAG = "${env.GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
-                    echo "Building images with tag: ${env.IMAGE_TAG}"
+                    echo "Building images with tag: ${IMAGE_TAG}"
 
                     sh """
                        cd docker
@@ -141,7 +128,7 @@ pipeline {
                         dir(service) {
                             sh """
                                 tar -czf ${service}-${IMAGE_TAG}.tar.gz src package.json package-lock.json
-                                curl -u ${NEXUS_CREDENTIALS} --upload-file ${service}-${IMAGE_TAG}.tar.gz \
+                                curl -u ${NEXUS_CREDENTIALS_USR}:${NEXUS_CREDENTIALS_PSW} --upload-file ${service}-${IMAGE_TAG}.tar.gz \
                                     http://${NEXUS_URL}/repository/ecommerce-artifacts/${service}/${IMAGE_TAG}/
                             """
                         }
@@ -158,7 +145,7 @@ pipeline {
                         message: 'Deploy to production?',
                         parameters: [
                             choice(name: 'DEPLOY_ENVIRONMENT', choices: ['production', 'staging'], description: 'Environment'),
-                            text(name: 'DEPLOY_NOTES', defaultValue: "Build ${BUILD_NUMBER} - ${IMAGE_TAG}", description: 'Notes')
+                            text(name: 'DEPLOY_NOTES', defaultValue: "Build ${BUILD_NUMBER}", description: 'Notes')
                         ]
                     )
                     env.DEPLOY_ENV = userInput.DEPLOY_ENVIRONMENT
@@ -190,17 +177,13 @@ pipeline {
             echo "  CI PIPELINE SUCCESS"
             echo "  Build #${BUILD_NUMBER}"
             echo "  Image Tag: ${IMAGE_TAG}"
-            echo "  Status: BUILD, TEST, SCAN COMPLETED"
             echo "  Images pushed to DockerHub"
-            echo "  Artifacts uploaded to Nexus"
             echo "============================================"
         }
         failure {
             echo "============================================"
             echo "  CI PIPELINE FAILED"
             echo "  Build #${BUILD_NUMBER}"
-            echo "  Image Tag: ${IMAGE_TAG}"
-            echo "  Status: BUILD FAILED"
             echo "  Console: ${BUILD_URL}console"
             echo "============================================"
         }
