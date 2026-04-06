@@ -91,7 +91,7 @@ pipeline {
                     """
 
                     if (params.DEPLOY_ENVIRONMENT == 'production') {
-                        sh 'kubectl apply -f k8s/base/ingress.yaml -n ${namespace}'
+                        sh "kubectl apply -f k8s/base/ingress.yaml -n ${namespace}"
                     }
                 }
             }
