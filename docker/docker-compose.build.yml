@@ -9,16 +9,16 @@ services:
     build:
       context: ../api-gateway
       dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/api-gateway:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/api-gateway:${IMAGE_TAG:-latest}
 
   product-service:
     build:
       context: ../product-service
       dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/product-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/product-service:${IMAGE_TAG:-latest}
 
   order-service:
     build:
       context: ../order-service
       dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/order-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/order-service:${IMAGE_TAG:-latest}
