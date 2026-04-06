@@ -30,7 +30,7 @@ spec:
             - configMapRef:
                 name: order-service-config
             - secretRef:
-                name: db-credentials
+                name: postgres-credentials
           resources:
             requests:
               memory: "256Mi"

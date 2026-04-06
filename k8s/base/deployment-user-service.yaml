@@ -25,7 +25,7 @@ spec:
             - configMapRef:
                 name: user-service-config
             - secretRef:
-                name: user-service-credentials
+                name: postgres-credentials
           resources:
             requests:
               memory: "128Mi"
