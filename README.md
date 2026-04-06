@@ -733,15 +733,14 @@ CREATE TABLE order_items (
 1. **Trigger** - GitHub webhook on push
 2. **Checkout** - Clone repository
 3. **Build** - Install dependencies
-4. **Unit Tests** - Run test suites with coverage
+4. **Unit Tests** - Run test suites
 5. **SonarQube Analysis** - Code quality scan
-6. **Quality Gate** - Enforce quality standards
-7. **Docker Build** - Build container images
-8. **Trivy Scan** - Security vulnerability scan
-9. **Push to DockerHub** - Publish images
-10. **Upload to Nexus** - Archive artifacts
-11. **Manual Approval** - Approve deployment
-12. **Trigger CD** - Start deployment pipeline
+6. **Docker Build** - Build container images with tag `${BUILD_NUMBER}`
+7. **Trivy Scan** - Security vulnerability scan
+8. **Push to DockerHub** - Publish images
+9. **Upload to Nexus** - Archive artifacts
+10. **Manual Approval** - Approve deployment
+11. **Trigger CD** - Start deployment pipeline
 
 ### CD Pipeline (Jenkinsfile-CD)
 1. **Checkout K8s Manifests** - Pull Kubernetes configs
@@ -749,7 +748,6 @@ CREATE TABLE order_items (
 3. **Update Image Tags** - Update deployment manifests
 4. **Deploy to EKS** - Apply to Kubernetes
 5. **Verify Rollout** - Check deployment status
-6. **Commit Manifests** - GitOps update
 
 ## Production Checklist
 
