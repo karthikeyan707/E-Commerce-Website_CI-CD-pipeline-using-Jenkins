@@ -22,3 +22,15 @@ services:
       context: ../order-service
       dockerfile: Dockerfile
     image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/order-service:${IMAGE_TAG:-latest}
+
+  user-service:
+    build:
+      context: ../user-service
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/user-service:${IMAGE_TAG:-latest}
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-ukarthikeyan}/frontend:${IMAGE_TAG:-latest}
