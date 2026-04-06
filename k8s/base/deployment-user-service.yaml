@@ -18,7 +18,7 @@ spec:
         workload-type: application
       containers:
         - name: user-service
-          image: your-dockerhub-username/user-service:latest
+          image: ukarthikeyan/user-service:latest
           ports:
             - containerPort: 3003
           envFrom:

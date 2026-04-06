@@ -54,7 +54,7 @@ pipeline {
                 script {
                     def tag = params.IMAGE_TAG == 'latest' ? sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim() : params.IMAGE_TAG
                     SERVICES.split(' ').each { service ->
-                        sh "sed -i 's|image: ${DOCKERHUB_CREDENTIALS_USR}/${service}:.*|image: ${DOCKERHUB_CREDENTIALS_USR}/${service}:${tag}|g' k8s/base/deployment-${service}.yaml"
+                        sh "sed -i 's|image: .*/${service}:.*|image: ${DOCKERHUB_CREDENTIALS_USR}/${service}:${tag}|g' k8s/base/deployment-${service}.yaml"
                     }
                     sh 'git diff k8s/base/'
                 }

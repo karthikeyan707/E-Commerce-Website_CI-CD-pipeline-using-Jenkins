@@ -18,7 +18,7 @@ spec:
         workload-type: application
       containers:
         - name: frontend
-          image: your-dockerhub-username/frontend:latest
+          image: ukarthikeyan/frontend:latest
           ports:
             - containerPort: 80
           resources:

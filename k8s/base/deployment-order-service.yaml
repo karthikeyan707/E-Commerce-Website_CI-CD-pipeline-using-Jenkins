@@ -23,7 +23,7 @@ spec:
         workload-type: application
       containers:
         - name: order-service
-          image: your-dockerhub-username/order-service:latest
+          image: ukarthikeyan/order-service:latest
           ports:
             - containerPort: 3002
           envFrom:

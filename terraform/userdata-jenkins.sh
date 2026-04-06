@@ -117,7 +117,7 @@ dnf install -y docker
 systemctl enable docker
 systemctl start docker
 
-# Add ec2-user and jenkins to docker group
+# Add jenkins to docker group
 usermod -aG docker jenkins
 
 #===============================================================================

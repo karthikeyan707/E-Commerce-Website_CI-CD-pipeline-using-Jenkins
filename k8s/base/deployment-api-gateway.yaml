@@ -23,7 +23,7 @@ spec:
         workload-type: application
       containers:
         - name: api-gateway
-          image: your-dockerhub-username/api-gateway:latest
+          image: ukarthikeyan/api-gateway:latest
           ports:
             - containerPort: 3000
           envFrom:
