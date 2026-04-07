@@ -21,7 +21,7 @@ key_name = "tata-key"
 
 jenkins_instance_type = "m7i-flex.large"
 
-allowed_ssh_cidr = "49.47.216.36/32" # Change to your IP
+allowed_ssh_cidr = "49.47.216.217/32" # Change to your IP
 
 cluster_name = "ecommerce-cluster"
 
