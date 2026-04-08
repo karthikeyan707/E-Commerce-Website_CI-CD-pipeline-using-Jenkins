@@ -469,7 +469,7 @@ chmod +x scripts/create-databases.sh
 
 # Verify
 kubectl get cluster -n production
-kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
+   kubectl get pods -l cnpg.io/cluster=postgres-cluster -n production
 ```
 
 **CloudNativePG Features:**
