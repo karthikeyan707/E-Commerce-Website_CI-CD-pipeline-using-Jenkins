@@ -505,10 +505,6 @@ kubectl apply -f configmap-product-service.yaml -n production
 kubectl apply -f configmap-order-service.yaml -n production
 kubectl apply -f configmap-user-service.yaml -n production
 
-# Secrets
-kubectl apply -f secret-db.yaml -n production
-kubectl apply -f secret-user-service.yaml -n production
-
 # Deployments
 kubectl apply -f deployment-api-gateway.yaml -n production
 kubectl apply -f deployment-product-service.yaml -n production
