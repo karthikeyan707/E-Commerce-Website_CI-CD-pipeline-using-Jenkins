@@ -167,7 +167,34 @@ E_Commerce-CICD/
 
 ## Quick Start
 
+### Prerequisites
+- AWS Account with appropriate permissions
+- Docker installed locally
+- AWS CLI, kubectl, eksctl installed
+- Terraform >= 1.5
+- Git
+
 ### Option 1: Local Development (Fastest)
+
+**Step 1: Clone Repository**
+```bash
+git clone https://github.com/karthikeyan707/E-Commerce-Website_CI-CD-pipeline-using-Jenkins.git
+cd E_Commerce-CICD_Final
+```
+
+**Step 2: Start Local Services**
+```bash
+cd docker
+docker-compose up -d
+```
+
+**Step 3: Access Application**
+- Frontend: http://localhost:3000
+- API Gateway: http://localhost:3000/api
+
+---
+
+### Option 2: Production Deployment on AWS EKS
 
 ```bash
 # Install dependencies
@@ -492,20 +519,21 @@ kubectl get cluster -n production
 # Legacy StatefulSet setup (manual failover required)
 kubectl apply -f k8s/base/storageclass-postgres.yaml
 kubectl apply -f k8s/base/configmap-postgres.yaml -n production
-kubectl apply -f k8s/base/secret-postgres.yaml -n production
-kubectl apply -f k8s/base/service-postgres.yaml -n production
-kubectl apply -f k8s/base/statefulset-postgres.yaml -n production
+# Setup PostgreSQL with CloudNativePG (includes secret creation)
+./scripts/setup-cloudnativepg.sh
 ```
 
 #### 4.4 Apply Application Configurations
 ```bash
+cd k8s/base
+
 # ConfigMaps
 kubectl apply -f configmap-api-gateway.yaml -n production
 kubectl apply -f configmap-product-service.yaml -n production
 kubectl apply -f configmap-order-service.yaml -n production
 kubectl apply -f configmap-user-service.yaml -n production
 
-# Deployments
+# Deployments (Services included in deployment files)
 kubectl apply -f deployment-api-gateway.yaml -n production
 kubectl apply -f deployment-product-service.yaml -n production
 kubectl apply -f deployment-order-service.yaml -n production
@@ -526,18 +554,20 @@ kubectl top pods -n production
 # Deploy HPA (Horizontal Pod Autoscaler)
 kubectl apply -f hpa.yaml -n production
 
-# Ingress (Production only)
+# ALB Ingress (routes / to frontend, /api to api-gateway)
 kubectl apply -f ingress.yaml -n production
 ```
 
 #### 4.5 Access the Application
 ```bash
-# Get frontend LoadBalancer URL
-kubectl get svc frontend -n production
+# Get ALB URL (takes 2-3 minutes to provision)
+kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
-# Or port-forward for local testing
-kubectl port-forward svc/frontend 8080:80 -n production
-# Open http://localhost:8080 in browser
+# Or watch until it's ready
+kubectl get ingress ecommerce-ingress -n production -w
+
+# Full output with URL
+kubectl get ingress ecommerce-ingress -n production
 ```
 
 #### 4.6 Verify Deployment

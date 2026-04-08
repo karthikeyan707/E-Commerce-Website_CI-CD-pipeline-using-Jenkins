@@ -81,18 +81,12 @@ pipeline {
                             kubectl apply -f k8s/base/deployment-\${service}.yaml -n ${namespace}
                         done
 
-                        # Apply services
-                        for f in k8s/base/service-*.yaml; do
-                            kubectl apply -f \$f -n ${namespace} || true
-                        done
-
                         # Apply HPA
                         kubectl apply -f k8s/base/hpa.yaml -n ${namespace} || true
                     """
 
-                    if (params.DEPLOY_ENVIRONMENT == 'production') {
-                        sh "kubectl apply -f k8s/base/ingress.yaml -n ${namespace}"
-                    }
+                    # Always apply Ingress for ALB routing
+                    sh "kubectl apply -f k8s/base/ingress.yaml -n ${namespace}"
                 }
             }
         }
@@ -107,7 +101,14 @@ pipeline {
                     SERVICES.split(' ').each { service ->
                         sh "kubectl rollout status deployment/${service} -n ${namespace} --timeout=300s"
                     }
-                    sh "kubectl get pods,svc,deployments -n ${namespace}"
+                    sh """
+                        echo "=== Deployment Status ==="
+                        kubectl get pods,svc,deployments,ingress -n ${namespace}
+                        
+                        echo ""
+                        echo "=== ALB Ingress URL ==="
+                        kubectl get ingress ecommerce-ingress -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || echo "ALB still provisioning..."
+                    """
                 }
             }
         }

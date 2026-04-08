@@ -188,6 +188,34 @@ curl -X POST http://localhost:3000/api/auth/register \
 
 ## AWS Production Setup
 
+### Quick Reference - Full Deployment Flow
+
+```bash
+# Phase 1: Infrastructure (Terraform)
+cd terraform
+terraform init
+terraform apply -auto-approve
+cd ..
+
+# Phase 2: Database Setup
+aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
+./scripts/setup-cloudnativepg.sh
+
+# Phase 3: Application Deployment
+cd k8s/base
+kubectl apply -f configmap-*.yaml -n production
+kubectl apply -f deployment-*.yaml -n production
+kubectl apply -f hpa.yaml -n production
+kubectl apply -f ingress.yaml -n production
+cd ../..
+
+# Phase 4: Access Application
+export ALB_URL=$(kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "App URL: http://$ALB_URL"
+```
+
+---
+
 ### Step 1: EKS Cluster (Terraform-managed)
 
 The EKS cluster is created automatically by Terraform. To get kubeconfig:
@@ -396,23 +424,12 @@ kubectl apply -f configmap-product-service.yaml -n production
 kubectl apply -f configmap-order-service.yaml -n production
 kubectl apply -f configmap-user-service.yaml -n production
 
-# Deploy Secrets
-kubectl apply -f secret-db.yaml -n production
-kubectl apply -f secret-user-service.yaml -n production
-
-# Deploy Services
+# Deploy Microservices (Services included in deployment files)
 kubectl apply -f deployment-api-gateway.yaml -n production
 kubectl apply -f deployment-product-service.yaml -n production
 kubectl apply -f deployment-order-service.yaml -n production
 kubectl apply -f deployment-user-service.yaml -n production
 kubectl apply -f deployment-frontend.yaml -n production
-
-# Deploy Service definitions
-kubectl apply -f service-api-gateway.yaml -n production
-kubectl apply -f service-product-service.yaml -n production
-kubectl apply -f service-order-service.yaml -n production
-kubectl apply -f service-user-service.yaml -n production
-kubectl apply -f service-frontend.yaml -n production
 
 # Install Metrics Server (required for HPA)
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
@@ -446,12 +463,16 @@ kubectl get hpa -n production
 # Check Ingress
 kubectl get ingress -n production
 
-# Get frontend URL
-kubectl get svc frontend -n production
+# Get ALB Ingress URL (Application Load Balancer)
+export ALB_URL=$(kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "Application URL: http://$ALB_URL"
 
-# Port-forward for local testing
-kubectl port-forward svc/frontend 8080:80 -n production
-# Open http://localhost:8080 in browser
+# Note: ALB takes 2-3 minutes to provision. Watch with:
+kubectl get ingress ecommerce-ingress -n production -w
+
+# Routing:
+# /      → Frontend (React app)
+# /api   → API Gateway (backend services)
 ```
 
 ---
