@@ -4,28 +4,9 @@
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
 
-# Download IAM policy for ALB Controller
-resource "null_resource" "download_alb_policy" {
-  triggers = {
-    always_run = timestamp()
-  }
-
-  provisioner "local-exec" {
-    command = "curl -o ${path.module}/alb_controller_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json"
-  }
-}
-
-# Read the IAM policy
-data "local_file" "alb_policy" {
-  filename   = "${path.module}/alb_controller_policy.json"
-  depends_on = [null_resource.download_alb_policy]
-}
-
-# Create IAM Policy for ALB Controller
-resource "aws_iam_policy" "alb_controller" {
-  name        = "AWSLoadBalancerControllerIAMPolicy"
-  description = "IAM policy for AWS Load Balancer Controller"
-  policy      = data.local_file.alb_policy.content
+# Use existing IAM Policy for ALB Controller
+data "aws_iam_policy" "alb_controller" {
+  name = "AWSLoadBalancerControllerIAMPolicy"
 }
 
 # IAM Role for ALB Controller (IRSA)
@@ -54,7 +35,7 @@ resource "aws_iam_role" "alb_controller_role" {
 
 # Attach policy to role
 resource "aws_iam_role_policy_attachment" "alb_controller" {
-  policy_arn = aws_iam_policy.alb_controller.arn
+  policy_arn = data.aws_iam_policy.alb_controller.arn
   role       = aws_iam_role.alb_controller_role.name
 }
 
