@@ -85,8 +85,8 @@ pipeline {
                         kubectl apply -f k8s/base/hpa.yaml -n ${namespace} || true
                     """
 
-                    # Always apply Ingress for ALB routing
-                    sh "kubectl apply -f k8s/base/ingress.yaml -n ${namespace}"
+                    # Apply NGINX Ingress for CLB routing
+                    sh "kubectl apply -f k8s/base/ingress-nginx.yaml -n ${namespace}"
                 }
             }
         }
@@ -106,8 +106,8 @@ pipeline {
                         kubectl get pods,svc,deployments,ingress -n ${namespace}
                         
                         echo ""
-                        echo "=== ALB Ingress URL ==="
-                        kubectl get ingress ecommerce-ingress -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || echo "ALB still provisioning..."
+                        echo "=== NGINX Ingress URL (CLB) ==="
+                        kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || echo "CLB still provisioning..."
                     """
                 }
             }

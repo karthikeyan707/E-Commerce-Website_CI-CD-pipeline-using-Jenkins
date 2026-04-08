@@ -206,12 +206,12 @@ cd k8s/base
 kubectl apply -f configmap-*.yaml -n production
 kubectl apply -f deployment-*.yaml -n production
 kubectl apply -f hpa.yaml -n production
-kubectl apply -f ingress.yaml -n production
+kubectl apply -f ingress-nginx.yaml -n production
 cd ../..
 
 # Phase 4: Access Application
-export ALB_URL=$(kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-echo "App URL: http://$ALB_URL"
+export CLB_URL=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "App URL: http://$CLB_URL"
 ```
 
 ---
@@ -311,9 +311,9 @@ chmod +x scripts/setup-rds.sh
 # - Database credentials stored in AWS Secrets Manager
 ```
 
-### Step 4: Install AWS Load Balancer Controller
+### Step 4: Install NGINX Ingress Controller
 
-Terraform creates the IAM role. Install the controller manually on EC2:
+Install NGINX Ingress Controller (creates AWS Classic Load Balancer):
 
 ```bash
 # SSH to your Jenkins/EC2 instance and run:
@@ -321,28 +321,17 @@ Terraform creates the IAM role. Install the controller manually on EC2:
 # 1. Configure kubectl
 aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
 
-# 2. Get the IAM role ARN from Terraform output
-# (Or find it in AWS Console: IAM > Roles > *-alb-controller-role)
-
-# 3. Create Kubernetes service account with IAM role annotation
-kubectl create serviceaccount aws-load-balancer-controller -n kube-system
-kubectl annotate serviceaccount aws-load-balancer-controller \
-  -n kube-system \
-  eks.amazonaws.com/role-arn=arn:aws:iam::941948905001:role/ecommerce-cluster-alb-controller-role
-
-# 4. Install ALB Controller via Helm
-helm repo add eks https://aws.github.io/eks-charts
+# 2. Install NGINX Ingress Controller via Helm
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
-helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --set clusterName=ecommerce-cluster \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller \
-  --set region=us-west-2 \
-  --set vpcId=vpc-06bec4472137da9cb
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer
 
-# 5. Verify installation
-kubectl get pods -n kube-system | grep alb
+# 3. Verify installation (wait for EXTERNAL-IP)
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
+
+# Press Ctrl+C when you see the EXTERNAL-IP
 ```
 
 ### Step 6: Optional DevOps Tools
@@ -480,7 +469,7 @@ kubectl top pods -n production
 kubectl apply -f hpa.yaml -n production
 
 # Deploy Ingress (for external access)
-kubectl apply -f ingress.yaml -n production
+kubectl apply -f ingress-nginx.yaml -n production
 ```
 
 ### Step 7: Verify Production Deployment
@@ -497,12 +486,12 @@ kubectl get hpa -n production
 # Check Ingress
 kubectl get ingress -n production
 
-# Get ALB Ingress URL (Application Load Balancer)
-export ALB_URL=$(kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-echo "Application URL: http://$ALB_URL"
+# Get NGINX CLB URL (Classic Load Balancer)
+export CLB_URL=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "Application URL: http://$CLB_URL"
 
-# Note: ALB takes 2-3 minutes to provision. Watch with:
-kubectl get ingress ecommerce-ingress -n production -w
+# Note: CLB takes 1-2 minutes to provision. Watch with:
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
 
 # Routing:
 # /      → Frontend (React app)
@@ -678,9 +667,9 @@ curl -X POST http://localhost:3000/api/auth/login \
 # Get application URL
 kubectl get ingress -n production
 
-# Test endpoints through ALB
-curl http://<alb-url>/api/products
-curl http://<alb-url>/health
+# Test endpoints through CLB
+curl http://$CLB_URL/api/products
+curl http://$CLB_URL/health
 
 # Check pod logs
 kubectl logs -f deployment/api-gateway -n production
@@ -847,7 +836,7 @@ kubectl get pods -n ingress-nginx
 # Check Ingress rules
 kubectl describe ingress api-gateway-ingress -n production
 
-# Check ALB in AWS Console
+# Check CLB in AWS Console (EC2 > Load Balancers)
 ```
 
 ### Performance Issues

@@ -14,7 +14,7 @@ A production-grade microservices-based E-Commerce system with complete CI/CD pip
 ┌───────────────────────────────────▼─────────────────────────────────┐
 │                              AWS EKS                                │
 │  ┌───────────────────────────────────────────────────────────────┐   │
-│  │                     Ingress (ALB)                          │   │
+│  │                  Ingress (NGINX/CLB)                       │   │
 │  └───────────────────────┬───────────────────────────────────┘   │
 │                          │                                        │
 │  ┌───────────────────────▼───────────────────────────────────┐     │
@@ -523,9 +523,9 @@ kubectl apply -f k8s/base/configmap-postgres.yaml -n production
 ./scripts/setup-cloudnativepg.sh
 ```
 
-#### 4.4 Install AWS Load Balancer Controller
+#### 4.4 Install NGINX Ingress Controller
 
-Terraform creates the IAM role. Install the controller manually on EC2:
+Install NGINX Ingress Controller (creates AWS Classic Load Balancer):
 
 ```bash
 # SSH to your Jenkins/EC2 instance and run:
@@ -533,28 +533,17 @@ Terraform creates the IAM role. Install the controller manually on EC2:
 # 1. Configure kubectl
 aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
 
-# 2. Get the IAM role ARN from Terraform output
-# (Or find it in AWS Console: IAM > Roles > *-alb-controller-role)
-
-# 3. Create Kubernetes service account with IAM role annotation
-kubectl create serviceaccount aws-load-balancer-controller -n kube-system
-kubectl annotate serviceaccount aws-load-balancer-controller \
-  -n kube-system \
-  eks.amazonaws.com/role-arn=arn:aws:iam::941948905001:role/ecommerce-cluster-alb-controller-role
-
-# 4. Install ALB Controller via Helm
-helm repo add eks https://aws.github.io/eks-charts
+# 2. Install NGINX Ingress Controller via Helm
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
-helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --set clusterName=ecommerce-cluster \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller \
-  --set region=us-west-2 \
-  --set vpcId=vpc-06bec4472137da9cb
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer
 
-# 5. Verify installation
-kubectl get pods -n kube-system | grep alb
+# 3. Verify installation (wait for EXTERNAL-IP)
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
+
+# Press Ctrl+C when you see the EXTERNAL-IP
 ```
 
 #### 4.5 Apply Application Configurations
@@ -588,20 +577,20 @@ kubectl top pods -n production
 # Deploy HPA (Horizontal Pod Autoscaler)
 kubectl apply -f hpa.yaml -n production
 
-# ALB Ingress (routes / to frontend, /api to api-gateway)
-kubectl apply -f ingress.yaml -n production
+# NGINX Ingress (routes / to frontend, /api to api-gateway)
+kubectl apply -f ingress-nginx.yaml -n production
 ```
 
 #### 4.5 Access the Application
 ```bash
-# Get ALB URL (takes 2-3 minutes to provision)
-kubectl get ingress ecommerce-ingress -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# Get CLB URL (takes 1-2 minutes to provision)
+kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
 # Or watch until it's ready
-kubectl get ingress ecommerce-ingress -n production -w
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
 
 # Full output with URL
-kubectl get ingress ecommerce-ingress -n production
+kubectl get svc ingress-nginx-controller -n ingress-nginx
 ```
 
 #### 4.6 Verify Deployment
@@ -826,7 +815,7 @@ CREATE TABLE order_items (
 - [ ] Configure CloudWatch monitoring
 - [ ] Set up alerting (Slack/Email)
 - [ ] Enable deletion protection on RDS
-- [ ] Configure WAF rules for ALB
+- [ ] Configure WAF rules for CLB
 - [ ] Set up VPC Flow Logs
 
 ## Troubleshooting
