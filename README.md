@@ -516,10 +516,6 @@ kubectl apply -f deployment-order-service.yaml -n production
 kubectl apply -f deployment-user-service.yaml -n production
 kubectl apply -f deployment-frontend.yaml -n production
 
-# Services
-kubectl apply -f service-user-service.yaml -n production
-kubectl apply -f service-frontend.yaml -n production
-
 # HPA
 kubectl apply -f hpa.yaml -n production
 
