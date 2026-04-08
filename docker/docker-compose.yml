@@ -34,7 +34,7 @@ services:
       DB_PORT: 5432
       DB_NAME: products_db
       DB_USER: postgres
-      DB_PASSWORD: password
+      DB_PASSWORD: postgres
       NODE_ENV: development
     ports:
       - "3001:3001"
@@ -63,7 +63,7 @@ services:
       DB_PORT: 5432
       DB_NAME: users_db
       DB_USER: postgres
-      DB_PASSWORD: password
+      DB_PASSWORD: postgres
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
       NODE_ENV: development
     ports:
@@ -93,7 +93,7 @@ services:
       DB_PORT: 5432
       DB_NAME: orders_db
       DB_USER: postgres
-      DB_PASSWORD: password
+      DB_PASSWORD: postgres
       PRODUCT_SERVICE_URL: http://product-service:3001
       NODE_ENV: development
     ports:
