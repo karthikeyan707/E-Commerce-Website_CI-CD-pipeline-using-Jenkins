@@ -179,8 +179,15 @@ mv ./kubectl /usr/local/bin/kubectl
 kubectl version --client
 
 #===============================================================================
-# Install Node.js & npm
+# Install Helm
 #===============================================================================
+echo "Installing Helm..."
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm version
+
+#===============================================================================
+# Install Node.js & npm
+#===================================================================
 echo "Installing Node.js 18..."
 curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
 dnf install -y nodejs
@@ -265,6 +272,7 @@ echo "  - Jenkins (port 8080)"
 echo "  - Docker & Docker Compose"
 echo "  - AWS CLI"
 echo "  - kubectl"
+echo "  - Helm"
 echo "  - Node.js & npm"
 echo "  - Trivy"
 echo "  - SonarQube Scanner"

@@ -311,7 +311,41 @@ chmod +x scripts/setup-rds.sh
 # - Database credentials stored in AWS Secrets Manager
 ```
 
-### Step 4: Optional DevOps Tools
+### Step 4: Install AWS Load Balancer Controller
+
+Terraform creates the IAM role. Install the controller manually on EC2:
+
+```bash
+# SSH to your Jenkins/EC2 instance and run:
+
+# 1. Configure kubectl
+aws eks update-kubeconfig --region us-west-2 --name ecommerce-cluster
+
+# 2. Get the IAM role ARN from Terraform output
+# (Or find it in AWS Console: IAM > Roles > *-alb-controller-role)
+
+# 3. Create Kubernetes service account with IAM role annotation
+kubectl create serviceaccount aws-load-balancer-controller -n kube-system
+kubectl annotate serviceaccount aws-load-balancer-controller \
+  -n kube-system \
+  eks.amazonaws.com/role-arn=arn:aws:iam::941948905001:role/ecommerce-cluster-alb-controller-role
+
+# 4. Install ALB Controller via Helm
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=ecommerce-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-west-2 \
+  --set vpcId=vpc-06bec4472137da9cb
+
+# 5. Verify installation
+kubectl get pods -n kube-system | grep alb
+```
+
+### Step 6: Optional DevOps Tools
 
 Deploy these tools on EKS if needed:
 
@@ -338,7 +372,7 @@ docker exec nexus cat /nexus-data/admin.password
 
 #### Other Optional Tools
 
-### Step 5: Build and Push Docker Images
+### Step 7: Build and Push Docker Images
 
 #### Option A: Using Build Script
 ```bash
@@ -375,7 +409,7 @@ docker push your-dockerhub-username/ecommerce-order-service:1.0.0
 docker push your-dockerhub-username/ecommerce-user-service:1.0.0
 ```
 
-### Step 6: Deploy Application to EKS
+### Step 8: Deploy Application to EKS
 
 #### Create Namespaces
 ```bash
