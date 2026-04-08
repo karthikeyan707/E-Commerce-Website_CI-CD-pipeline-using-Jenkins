@@ -414,6 +414,17 @@ kubectl apply -f service-order-service.yaml -n production
 kubectl apply -f service-user-service.yaml -n production
 kubectl apply -f service-frontend.yaml -n production
 
+# Install Metrics Server (required for HPA)
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# Wait for Metrics Server to be ready (2-3 minutes)
+sleep 120
+kubectl get deployment metrics-server -n kube-system
+
+# Verify metrics are available
+kubectl top nodes
+kubectl top pods -n production
+
 # Deploy HPA (Horizontal Pod Autoscaler)
 kubectl apply -f hpa.yaml -n production
 
