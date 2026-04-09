@@ -1,5 +1,5 @@
 pipeline {
-    
+
     agent any
 
     environment {
@@ -83,10 +83,10 @@ pipeline {
 
                         # Apply HPA
                         kubectl apply -f k8s/base/hpa.yaml -n ${namespace} || true
-                    """
 
-                    # Apply NGINX Ingress for CLB routing
-                    sh "kubectl apply -f k8s/base/ingress-nginx.yaml -n ${namespace}"
+                        # Apply Ingress
+                        kubectl apply -f k8s/base/ingress-nginx.yaml -n ${namespace}
+                    """
                 }
             }
         }
