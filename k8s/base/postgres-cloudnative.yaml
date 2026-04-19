@@ -57,6 +57,15 @@ spec:
     topologyKey: topology.kubernetes.io/zone
     podAntiAffinityType: required
 
+    nodeSelector:
+      workload-type: database
+
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "database"
+      effect: "NoSchedule"
+
   # Backup configuration (optional - requires S3)
   # backup:
   #   enabled: true

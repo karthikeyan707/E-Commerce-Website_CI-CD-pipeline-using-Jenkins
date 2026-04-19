@@ -34,7 +34,7 @@ echo "================================"
 # Create namespace if not exists
 kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
 
-# Create secret for PostgreSQL credentials (change these in production!)
+# Create secret for PostgreSQL credentials
 kubectl create secret generic postgres-credentials \
   --from-literal=username=postgres \
   --from-literal=password=postgres \
@@ -152,7 +152,7 @@ echo "Cluster Information:"
 echo "-------------------"
 echo "Cluster Name: postgres-cluster"
 echo "Namespace: production"
-echo "Instances: 3 (1 Primary + 2 Replicas)"
+echo "Instances: 2 (1 Primary + 1 Replicas)"
 echo ""
 echo "Services:"
 echo "--------"
