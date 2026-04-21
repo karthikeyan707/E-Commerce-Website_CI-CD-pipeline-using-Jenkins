@@ -43,11 +43,14 @@ resource "aws_iam_role_policy" "jenkins_policy" {
   })
 }
 
+
 # IAM Instance Profile for Jenkins
 resource "aws_iam_instance_profile" "jenkins_profile" {
   name = "jenkins-ec2-profile"
   role = aws_iam_role.jenkins_role.name
 }
+
+
 
 # IAM Role for EKS Cluster
 resource "aws_iam_role" "eks_cluster_role" {
@@ -71,6 +74,7 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.eks_cluster_role.name
 }
+
 
 # IAM Role for EKS Node Group
 resource "aws_iam_role" "eks_node_role" {

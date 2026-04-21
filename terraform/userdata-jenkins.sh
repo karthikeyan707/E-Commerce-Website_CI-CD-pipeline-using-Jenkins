@@ -25,9 +25,9 @@ dnf install -y curl --allowerasing
 # Install Java
 #===============================================================================
 echo "Installing Java..."
-dnf install -y java-17-amazon-corretto-devel
+dnf install -y java-21-amazon-corretto-devel
 
-echo "export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto" >> /etc/profile
+echo "export JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto" >> /etc/profile
 echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/profile
 source /etc/profile
 
@@ -57,10 +57,10 @@ After=network.target
 [Service]
 Type=simple
 User=jenkins
-Environment="JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto"
+Environment="JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto"
 Environment="JENKINS_HOME=/var/lib/jenkins"
 WorkingDirectory=/var/lib/jenkins
-ExecStart=/usr/lib/jvm/java-17-amazon-corretto/bin/java -jar /opt/jenkins.war --httpPort=8080
+ExecStart=/usr/lib/jvm/java-21-amazon-corretto/bin/java -jar /opt/jenkins.war --httpPort=8080 --webroot=/var/lib/jenkins/war
 Restart=always
 RestartSec=10
 
