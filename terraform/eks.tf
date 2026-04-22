@@ -126,13 +126,6 @@ resource "aws_eks_node_group" "db_nodes" {
     environment   = "production"
   }
 
-  # Taints to prevent app pods from scheduling on DB nodes
-  taint {
-    key    = "dedicated"
-    value  = "database"
-    effect = "NO_SCHEDULE"
-  }
-
   remote_access {
     ec2_ssh_key               = var.key_name
     source_security_group_ids = [aws_security_group.eks_node_sg.id]
